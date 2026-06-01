@@ -40,6 +40,9 @@ func TestAuthStatusLoginLogoutUseProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected auth login to succeed, got error: %v stderr=%s", err, stderr)
 	}
+	if !strings.Contains(stdout, "Yunxiao personal access token") {
+		t.Fatalf("expected login prompt, got stdout:\n%s", stdout)
+	}
 	if provider.token != "secret-token" {
 		t.Fatal("expected login to pass token to provider")
 	}

@@ -2,7 +2,9 @@ package cli
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 
@@ -54,8 +56,9 @@ func newAuthLoginCommand(opts Options) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			fmt.Fprint(cmd.OutOrStdout(), "Yunxiao personal access token: ")
 			token, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
-			if err != nil {
+			if err != nil && !errors.Is(err, io.EOF) {
 				return fmt.Errorf("read token: %w", err)
 			}
 			token = strings.TrimSpace(token)
