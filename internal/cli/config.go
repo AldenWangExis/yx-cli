@@ -1,13 +1,13 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 
 	"github.com/AldenWangExis/yx-cli/internal/config"
+	"github.com/AldenWangExis/yx-cli/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -46,16 +46,11 @@ func newConfigListCommand(opts Options) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			renderer := output.NewRenderer(cmd.OutOrStdout())
 			if ContextFromCommand(cmd).JSON {
-				data, err := json.MarshalIndent(cfg, "", "  ")
-				if err != nil {
-					return err
-				}
-				fmt.Fprintln(cmd.OutOrStdout(), string(data))
-				return nil
+				return renderer.WriteJSON(cfg)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "current: %s\nprofiles: %d\n", cfg.Current, len(cfg.Profiles))
-			return nil
+			return renderer.WriteTable([]string{"CURRENT", "PROFILES"}, [][]string{{cfg.Current, strconv.Itoa(len(cfg.Profiles))}})
 		},
 	}
 }
