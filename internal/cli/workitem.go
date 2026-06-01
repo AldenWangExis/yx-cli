@@ -5,7 +5,12 @@ import (
 	"fmt"
 
 	"github.com/AldenWangExis/yx-cli/internal/app"
+	"github.com/AldenWangExis/yx-cli/internal/auth"
+	"github.com/AldenWangExis/yx-cli/internal/config"
 	"github.com/AldenWangExis/yx-cli/internal/output"
+	"github.com/AldenWangExis/yx-cli/internal/safety"
+	"github.com/AldenWangExis/yx-cli/internal/yunxiao"
+	"github.com/AldenWangExis/yx-cli/internal/yunxiao/projex"
 	"github.com/spf13/cobra"
 )
 
@@ -178,5 +183,35 @@ func (o Options) workitemUseCase() (WorkitemUseCase, error) {
 	if o.WorkitemUseCase != nil {
 		return o.WorkitemUseCase, nil
 	}
-	return nil, fmt.Errorf("workitem service is not configured")
+	cfg, err := config.NewStore(o.ConfigPath).Load()
+	if err != nil {
+		return nil, err
+	}
+	profileName := o.DefaultProfile
+	if profileName == "" {
+		profileName = cfg.Current
+	}
+	if profileName == "" {
+		profileName = "default"
+	}
+	profile, ok := cfg.Profiles[profileName]
+	if !ok {
+		return nil, fmt.Errorf("profile %q does not exist", profileName)
+	}
+	token, ok, err := auth.NewFileTokenStore(defaultTokenPath(o.ConfigPath)).Load(profileName)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, fmt.Errorf("profile %q is not logged in", profileName)
+	}
+	adapter := projex.NewAdapter(yunxiao.ClientConfig{
+		BaseURL:        profile.Domain,
+		Token:          token,
+		OrganizationID: profile.Organization,
+		Region:         profile.Region,
+	})
+	return app.NewWorkitemUseCase(adapter, adapter, profile.RepoProjectMap, safety.Environment{
+		ConfirmWrites: profile.Safety.ConfirmWrites,
+	}), nil
 }
