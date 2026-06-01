@@ -78,6 +78,9 @@ func TestAuthStatusLoginLogoutUseProvider(t *testing.T) {
 	if !strings.Contains(stdout, "Yunxiao personal access token") {
 		t.Fatalf("expected login prompt, got stdout:\n%s", stdout)
 	}
+	if !strings.Contains(stdout, "✓ Logged in profile default using fake token store") {
+		t.Fatalf("expected explicit login success, got stdout:\n%s", stdout)
+	}
 	if provider.token != "secret-token" {
 		t.Fatal("expected login to pass token to provider")
 	}
@@ -144,6 +147,7 @@ func TestAuthLoginStoresOptionalServiceConnection(t *testing.T) {
 		"Codeup service connection ID",
 		"https://flow.aliyun.com/setting/service-connection",
 		"stored Codeup service connection for profile default",
+		"✓ Logged in profile default using fake token store",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("expected login output to include %q, got:\n%s", want, stdout)

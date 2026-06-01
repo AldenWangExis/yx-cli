@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -188,10 +189,34 @@ func newAuthLoginCommand(opts Options) *cobra.Command {
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "stored Codeup service connection for profile %s\n", status.Profile)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "logged in profile %s using %s token store\n", status.Profile, status.Backend)
+			writeSuccess(cmd.OutOrStdout(), "✓ Logged in profile %s using %s token store\n", status.Profile, status.Backend)
 			return nil
 		},
 	}
+}
+
+func writeSuccess(w io.Writer, format string, args ...any) {
+	message := fmt.Sprintf(format, args...)
+	if shouldColor(w) {
+		fmt.Fprintf(w, "\033[32m%s\033[0m", message)
+		return
+	}
+	fmt.Fprint(w, message)
+}
+
+func shouldColor(w io.Writer) bool {
+	if os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" {
+		return false
+	}
+	file, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+	info, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeCharDevice != 0
 }
 
 func readOptionalLine(reader *bufio.Reader, w io.Writer, prompt string) (string, error) {
