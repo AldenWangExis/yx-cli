@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/AldenWangExis/yx-cli/internal/app"
@@ -86,6 +87,51 @@ func TestRepoListAndViewJSON(t *testing.T) {
 	}
 	if stdout != "print(1)\n" {
 		t.Fatalf("unexpected file output: %q", stdout)
+	}
+}
+
+func TestRepoHelpShowsSubcommandsAndExamples(t *testing.T) {
+	stdout, stderr, err := executeCommand(t, NewRootCommandWithOptions(Options{
+		ConfigPath:  filepath.Join(t.TempDir(), "config.yaml"),
+		RepoUseCase: &fakeRepoUseCase{},
+	}), "repo", "--help")
+	if err != nil {
+		t.Fatalf("expected repo help to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	for _, want := range []string{
+		"Manage Codeup repositories",
+		"Available Commands:",
+		"create",
+		"branch",
+		"commit",
+		"file",
+		"yx repo create --name demo --path demo --visibility private --yes",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("expected repo help to include %q, got:\n%s", want, stdout)
+		}
+	}
+}
+
+func TestRepoCreateHelpShowsFlags(t *testing.T) {
+	stdout, stderr, err := executeCommand(t, NewRootCommandWithOptions(Options{
+		ConfigPath:  filepath.Join(t.TempDir(), "config.yaml"),
+		RepoUseCase: &fakeRepoUseCase{},
+	}), "repo", "create", "--help")
+	if err != nil {
+		t.Fatalf("expected repo create help to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	for _, want := range []string{
+		"Create a Codeup repository",
+		"--name",
+		"--path",
+		"--visibility",
+		"--dry-run",
+		"--yes",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("expected repo create help to include %q, got:\n%s", want, stdout)
+		}
 	}
 }
 

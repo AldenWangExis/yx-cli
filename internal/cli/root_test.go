@@ -20,11 +20,19 @@ func TestRootHelp(t *testing.T) {
 	}
 
 	out := stdout.String()
-	if !strings.Contains(out, "yx") {
-		t.Fatalf("expected help to include command name, got:\n%s", out)
-	}
-	if !strings.Contains(out, "Usage:") {
-		t.Fatalf("expected help to include usage, got:\n%s", out)
+	for _, want := range []string{
+		"Yunxiao command line client",
+		"Usage:",
+		"Available Commands:",
+		"repo",
+		"mr",
+		"pipeline",
+		"Flags:",
+		"yx repo list",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected help to include %q, got:\n%s", want, out)
+		}
 	}
 	if stderr.String() != "" {
 		t.Fatalf("expected no stderr, got:\n%s", stderr.String())

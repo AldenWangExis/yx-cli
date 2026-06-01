@@ -24,10 +24,16 @@ type WorkitemUseCase interface {
 }
 
 func newProjectCommand(opts Options) *cobra.Command {
-	cmd := &cobra.Command{Use: "project", Short: "Manage Yunxiao projects"}
+	cmd := &cobra.Command{
+		Use:     "project",
+		Short:   "Manage Yunxiao projects",
+		Long:    "Manage Yunxiao Projex projects.",
+		Example: "  yx project list\n  yx project create --name demo --description \"Demo project\" --yes",
+	}
 	cmd.AddCommand(&cobra.Command{
-		Use:   "list",
-		Short: "List projects",
+		Use:     "list",
+		Short:   "List projects",
+		Example: "  yx project list\n  yx --json project list",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			useCase, err := opts.workitemUseCase()
 			if err != nil {
@@ -55,8 +61,9 @@ func newProjectCommand(opts Options) *cobra.Command {
 func newProjectCreateCommand(opts Options) *cobra.Command {
 	input := app.CreateProjectInput{Scope: "public"}
 	cmd := &cobra.Command{
-		Use:   "create",
-		Short: "Create a project",
+		Use:     "create",
+		Short:   "Create a project",
+		Example: "  yx project create --name demo --dry-run\n  yx project create --name demo --description \"Demo project\" --yes",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			useCase, err := opts.workitemUseCase()
 			if err != nil {
@@ -80,7 +87,12 @@ func newProjectCreateCommand(opts Options) *cobra.Command {
 }
 
 func newWorkitemCommand(opts Options, use string) *cobra.Command {
-	cmd := &cobra.Command{Use: use, Short: "Manage Yunxiao work items"}
+	cmd := &cobra.Command{
+		Use:     use,
+		Short:   "Manage Yunxiao work items",
+		Long:    "Manage Yunxiao work items. The issue command is an alias over workitem.",
+		Example: fmt.Sprintf("  yx %s list --project <project-id>\n  yx %s view <workitem-id>\n  yx %s create --project <project-id> --type Task --title \"Do work\" --dry-run\n  yx %s update <workitem-id> --status done --dry-run", use, use, use, use),
+	}
 	cmd.AddCommand(newWorkitemListCommand(opts))
 	cmd.AddCommand(newWorkitemViewCommand(opts))
 	cmd.AddCommand(newWorkitemCreateCommand(opts))
@@ -91,8 +103,9 @@ func newWorkitemCommand(opts Options, use string) *cobra.Command {
 func newWorkitemListCommand(opts Options) *cobra.Command {
 	var input app.WorkitemListInput
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List work items",
+		Use:     "list",
+		Short:   "List work items",
+		Example: "  yx workitem list --project <project-id>\n  yx issue list --repo <repo>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			useCase, err := opts.workitemUseCase()
 			if err != nil {
@@ -120,9 +133,10 @@ func newWorkitemListCommand(opts Options) *cobra.Command {
 
 func newWorkitemViewCommand(opts Options) *cobra.Command {
 	return &cobra.Command{
-		Use:   "view <workitem-id>",
-		Short: "View a work item",
-		Args:  cobra.ExactArgs(1),
+		Use:     "view <workitem-id>",
+		Short:   "View a work item",
+		Example: "  yx workitem view <workitem-id>\n  yx --json workitem view <workitem-id>",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			useCase, err := opts.workitemUseCase()
 			if err != nil {
@@ -147,8 +161,9 @@ func newWorkitemViewCommand(opts Options) *cobra.Command {
 func newWorkitemCreateCommand(opts Options) *cobra.Command {
 	var input app.CreateWorkitemInput
 	cmd := &cobra.Command{
-		Use:   "create",
-		Short: "Create a work item",
+		Use:     "create",
+		Short:   "Create a work item",
+		Example: "  yx workitem create --project <project-id> --type Task --title \"Do work\" --dry-run\n  yx workitem create --project <project-id> --type Task --title \"Do work\" --yes",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			useCase, err := opts.workitemUseCase()
 			if err != nil {
@@ -172,9 +187,10 @@ func newWorkitemCreateCommand(opts Options) *cobra.Command {
 func newWorkitemUpdateCommand(opts Options) *cobra.Command {
 	var input app.UpdateWorkitemInput
 	cmd := &cobra.Command{
-		Use:   "update <workitem-id>",
-		Short: "Update a work item",
-		Args:  cobra.ExactArgs(1),
+		Use:     "update <workitem-id>",
+		Short:   "Update a work item",
+		Example: "  yx workitem update <workitem-id> --status done --dry-run\n  yx workitem update <workitem-id> --assignee <user-id> --yes",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			input.ID = args[0]
 			useCase, err := opts.workitemUseCase()

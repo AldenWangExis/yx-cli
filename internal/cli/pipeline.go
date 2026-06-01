@@ -22,13 +22,18 @@ type PipelineUseCase interface {
 }
 
 func newPipelineCommand(opts Options) *cobra.Command {
-	cmd := &cobra.Command{Use: "pipeline", Short: "Manage Flow pipelines"}
+	cmd := &cobra.Command{
+		Use:     "pipeline",
+		Short:   "Manage Flow pipelines",
+		Long:    "Manage Yunxiao Flow pipelines, runs, and logs.",
+		Example: "  yx pipeline list\n  yx pipeline view <pipeline-id>\n  yx pipeline run <pipeline-id> --branch master --dry-run\n  yx pipeline logs <run-id>",
+	}
 	cmd.AddCommand(newPipelineListCommand(opts), newPipelineViewCommand(opts), newPipelineRunCommand(opts), newPipelineLogsCommand(opts))
 	return cmd
 }
 
 func newPipelineListCommand(opts Options) *cobra.Command {
-	return &cobra.Command{Use: "list", RunE: func(cmd *cobra.Command, args []string) error {
+	return &cobra.Command{Use: "list", Short: "List pipelines", Example: "  yx pipeline list\n  yx --json pipeline list", RunE: func(cmd *cobra.Command, args []string) error {
 		useCase, err := opts.pipelineUseCase()
 		if err != nil {
 			return err
@@ -50,7 +55,7 @@ func newPipelineListCommand(opts Options) *cobra.Command {
 }
 
 func newPipelineViewCommand(opts Options) *cobra.Command {
-	return &cobra.Command{Use: "view <pipeline-id>", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	return &cobra.Command{Use: "view <pipeline-id>", Short: "View a pipeline", Example: "  yx pipeline view <pipeline-id>\n  yx --json pipeline view <pipeline-id>", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		useCase, err := opts.pipelineUseCase()
 		if err != nil {
 			return err
@@ -69,7 +74,7 @@ func newPipelineViewCommand(opts Options) *cobra.Command {
 
 func newPipelineRunCommand(opts Options) *cobra.Command {
 	var input app.PipelineRunInput
-	cmd := &cobra.Command{Use: "run <pipeline-id>", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	cmd := &cobra.Command{Use: "run <pipeline-id>", Short: "Run a pipeline", Example: "  yx pipeline run <pipeline-id> --branch master --dry-run\n  yx pipeline run <pipeline-id> --branch master --yes", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		input.PipelineID = args[0]
 		useCase, err := opts.pipelineUseCase()
 		if err != nil {
@@ -97,7 +102,7 @@ func newPipelineRunCommand(opts Options) *cobra.Command {
 
 func newPipelineLogsCommand(opts Options) *cobra.Command {
 	var input app.PipelineLogsInput
-	cmd := &cobra.Command{Use: "logs <run-id>", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	cmd := &cobra.Command{Use: "logs <run-id>", Short: "View pipeline run logs", Example: "  yx pipeline logs <run-id>\n  yx pipeline logs <run-id> --follow", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		input.RunID = args[0]
 		useCase, err := opts.pipelineUseCase()
 		if err != nil {

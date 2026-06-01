@@ -23,8 +23,10 @@ type MergeRequestUseCase interface {
 
 func newMergeRequestCommand(opts Options, use string) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   use,
-		Short: "Manage Codeup merge requests",
+		Use:     use,
+		Short:   "Manage Codeup merge requests",
+		Long:    "Manage Codeup merge requests for a repository.",
+		Example: fmt.Sprintf("  yx %s list --repo <repo>\n  yx %s view <mr-id> --repo <repo>\n  yx %s create --repo <repo> --source feat/a --target master --title \"Add feature\" --dry-run\n  yx %s merge <mr-id> --repo <repo> --yes", use, use, use, use),
 	}
 	cmd.AddCommand(newMRListCommand(opts))
 	cmd.AddCommand(newMRViewCommand(opts))
@@ -36,8 +38,9 @@ func newMergeRequestCommand(opts Options, use string) *cobra.Command {
 func newMRListCommand(opts Options) *cobra.Command {
 	var repo string
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List merge requests",
+		Use:     "list",
+		Short:   "List merge requests",
+		Example: "  yx mr list --repo 6925595\n  yx --json mr list --repo 6925595",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if repo == "" {
 				return fmt.Errorf("--repo is required")
@@ -68,9 +71,10 @@ func newMRListCommand(opts Options) *cobra.Command {
 func newMRViewCommand(opts Options) *cobra.Command {
 	var repo string
 	cmd := &cobra.Command{
-		Use:   "view <mr-id>",
-		Short: "View a merge request",
-		Args:  cobra.ExactArgs(1),
+		Use:     "view <mr-id>",
+		Short:   "View a merge request",
+		Example: "  yx mr view 1 --repo 6925595\n  yx --json mr view 1 --repo 6925595",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if repo == "" {
 				return fmt.Errorf("--repo is required")
@@ -100,8 +104,9 @@ func newMRViewCommand(opts Options) *cobra.Command {
 func newMRCreateCommand(opts Options) *cobra.Command {
 	var input app.CreateMergeRequestInput
 	cmd := &cobra.Command{
-		Use:   "create",
-		Short: "Create a merge request",
+		Use:     "create",
+		Short:   "Create a merge request",
+		Example: "  yx mr create --repo 6925595 --source feat/a --target master --title \"Add feature\" --dry-run\n  yx mr create --repo 6925595 --source feat/a --target master --title \"Add feature\" --yes",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			useCase, err := opts.mergeRequestUseCase()
 			if err != nil {
@@ -126,9 +131,10 @@ func newMRCreateCommand(opts Options) *cobra.Command {
 func newMRMergeCommand(opts Options) *cobra.Command {
 	var input app.MergeMergeRequestInput
 	cmd := &cobra.Command{
-		Use:   "merge <mr-id>",
-		Short: "Merge a merge request",
-		Args:  cobra.ExactArgs(1),
+		Use:     "merge <mr-id>",
+		Short:   "Merge a merge request",
+		Example: "  yx mr merge 1 --repo 6925595 --dry-run\n  yx mr merge 1 --repo 6925595 --yes",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			input.ID = args[0]
 			useCase, err := opts.mergeRequestUseCase()
