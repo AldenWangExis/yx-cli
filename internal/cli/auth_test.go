@@ -98,6 +98,96 @@ func TestAuthStatusLoginLogoutUseProvider(t *testing.T) {
 	}
 }
 
+func TestAuthStatusShowsSetupHintsWhenNotLoggedIn(t *testing.T) {
+	provider := &fakeAuthProvider{
+		status: auth.Status{Profile: "default", HasToken: false, Backend: "fake"},
+	}
+
+	stdout, stderr, err := executeCommand(t, NewRootCommandWithOptions(Options{
+		ConfigPath:          filepath.Join(t.TempDir(), "config.yaml"),
+		AuthProvider:        provider,
+		AuthAccountResolver: fakeAuthAccountResolver{},
+		DefaultProfile:      "default",
+	}), "auth", "status")
+	if err != nil {
+		t.Fatalf("expected auth status to succeed, got error: %v stderr=%s", err, stderr)
+	}
+
+	for _, want := range []string{
+		"Personal access token: https://account-devops.aliyun.com/settings/personalAccessToken",
+		"Service connections: https://flow.aliyun.com/setting/service-connection",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("expected status output to include %q, got:\n%s", want, stdout)
+		}
+	}
+}
+
+func TestAuthLoginStoresOptionalServiceConnection(t *testing.T) {
+	provider := &fakeAuthProvider{}
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+
+	cmd := NewRootCommandWithOptions(Options{
+		ConfigPath:     configPath,
+		AuthProvider:   provider,
+		DefaultProfile: "default",
+	})
+	cmd.SetIn(strings.NewReader("secret-token\nsc-codeup-1\n"))
+	stdout, stderr, err := executeCommand(t, cmd, "auth", "login")
+	if err != nil {
+		t.Fatalf("expected auth login to succeed, got error: %v stderr=%s", err, stderr)
+	}
+
+	for _, want := range []string{
+		"Yunxiao personal access token",
+		"https://account-devops.aliyun.com/settings/personalAccessToken",
+		"Codeup service connection ID",
+		"https://flow.aliyun.com/setting/service-connection",
+		"stored Codeup service connection for profile default",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("expected login output to include %q, got:\n%s", want, stdout)
+		}
+	}
+	if provider.token != "secret-token" {
+		t.Fatal("expected login to pass token to provider")
+	}
+	cfg, err := config.NewStore(configPath).Load()
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if got := cfg.Profiles["default"].ServiceConnections["codeup"]; got != "sc-codeup-1" {
+		t.Fatalf("expected codeup service connection to be stored, got %q", got)
+	}
+	if strings.Contains(stdout, "secret-token") || strings.Contains(stderr, "secret-token") {
+		t.Fatal("auth login leaked token")
+	}
+}
+
+func TestAuthLoginSkipsEmptyServiceConnection(t *testing.T) {
+	provider := &fakeAuthProvider{}
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+
+	cmd := NewRootCommandWithOptions(Options{
+		ConfigPath:     configPath,
+		AuthProvider:   provider,
+		DefaultProfile: "default",
+	})
+	cmd.SetIn(strings.NewReader("secret-token\n\n"))
+	_, stderr, err := executeCommand(t, cmd, "auth", "login")
+	if err != nil {
+		t.Fatalf("expected auth login to succeed, got error: %v stderr=%s", err, stderr)
+	}
+
+	cfg, err := config.NewStore(configPath).Load()
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if got := cfg.Profiles["default"].ServiceConnections["codeup"]; got != "" {
+		t.Fatalf("expected empty service connection to be skipped, got %q", got)
+	}
+}
+
 type fakeAuthProvider struct {
 	status    auth.Status
 	token     string

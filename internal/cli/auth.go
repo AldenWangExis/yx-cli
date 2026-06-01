@@ -15,6 +15,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	yunxiaoPATURL               = "https://account-devops.aliyun.com/settings/personalAccessToken"
+	yunxiaoServiceConnectionURL = "https://flow.aliyun.com/setting/service-connection"
+)
+
 func newAuthCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "auth",
@@ -96,6 +101,10 @@ func renderAuthStatus(w io.Writer, currentProfile string, profileConfig config.P
 		token = "present"
 	}
 	fmt.Fprintf(w, "  - Token: %s\n", token)
+	if !status.HasToken {
+		fmt.Fprintf(w, "  - Personal access token: %s\n", yunxiaoPATURL)
+		fmt.Fprintf(w, "  - Service connections: %s\n", yunxiaoServiceConnectionURL)
+	}
 	if len(profileConfig.ServiceConnections) > 0 {
 		fmt.Fprintln(w, "  - Service connections:")
 		keys := make([]string, 0, len(profileConfig.ServiceConnections))
@@ -155,8 +164,9 @@ func newAuthLoginCommand(opts Options) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprint(cmd.OutOrStdout(), "Yunxiao personal access token: ")
-			token, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+			reader := bufio.NewReader(cmd.InOrStdin())
+			fmt.Fprintf(cmd.OutOrStdout(), "Yunxiao personal access token (%s): ", yunxiaoPATURL)
+			token, err := reader.ReadString('\n')
 			if err != nil && !errors.Is(err, io.EOF) {
 				return fmt.Errorf("read token: %w", err)
 			}
@@ -168,10 +178,50 @@ func newAuthLoginCommand(opts Options) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			serviceConnection, err := readOptionalLine(reader, cmd.OutOrStdout(), fmt.Sprintf("Codeup service connection ID (optional, %s): ", yunxiaoServiceConnectionURL))
+			if err != nil {
+				return err
+			}
+			if serviceConnection != "" {
+				if err := saveCodeupServiceConnection(opts.ConfigPath, profile, serviceConnection); err != nil {
+					return err
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "stored Codeup service connection for profile %s\n", status.Profile)
+			}
 			fmt.Fprintf(cmd.OutOrStdout(), "logged in profile %s using %s token store\n", status.Profile, status.Backend)
 			return nil
 		},
 	}
+}
+
+func readOptionalLine(reader *bufio.Reader, w io.Writer, prompt string) (string, error) {
+	fmt.Fprint(w, prompt)
+	value, err := reader.ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return "", fmt.Errorf("read optional value: %w", err)
+	}
+	return strings.TrimSpace(value), nil
+}
+
+func saveCodeupServiceConnection(configPath, profileName, id string) error {
+	store := config.NewStore(configPath)
+	cfg, err := store.Load()
+	if err != nil {
+		return err
+	}
+	if cfg.Profiles == nil {
+		cfg.Profiles = map[string]config.Profile{}
+	}
+	profile := cfg.Profiles[profileName]
+	if profile.ServiceConnections == nil {
+		profile.ServiceConnections = map[string]string{}
+	}
+	profile.ServiceConnections["codeup"] = id
+	cfg.Profiles[profileName] = profile
+	if cfg.Current == "" {
+		cfg.Current = profileName
+	}
+	return store.Save(cfg)
 }
 
 func newAuthLogoutCommand(opts Options) *cobra.Command {
