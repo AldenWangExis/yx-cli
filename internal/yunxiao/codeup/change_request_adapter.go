@@ -21,7 +21,9 @@ func NewChangeRequestAdapter(config yunxiao.ClientConfig) *ChangeRequestAdapter 
 }
 
 func (a *ChangeRequestAdapter) ListMergeRequests(ctx context.Context, repo string) ([]app.MergeRequestListItem, error) {
-	data, err := a.client.DoJSON(ctx, http.MethodGet, a.changeRequestsPath(repo), nil, nil)
+	query := url.Values{}
+	query.Set("repositoryId", repo)
+	data, err := a.client.DoJSON(ctx, http.MethodGet, a.organizationChangeRequestsPath(), query, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +34,7 @@ func (a *ChangeRequestAdapter) ListMergeRequests(ctx context.Context, repo strin
 	items := make([]app.MergeRequestListItem, 0, len(response))
 	for _, mr := range response {
 		items = append(items, app.MergeRequestListItem{
-			ID:           formatChangeRequestID(mr.ID),
+			ID:           formatChangeRequestID(firstNonZero(mr.ID, mr.LocalID)),
 			Title:        mr.Title,
 			State:        mr.State,
 			SourceBranch: mr.SourceBranch,
@@ -81,6 +83,13 @@ func (a *ChangeRequestAdapter) changeRequestsPath(repo string) string {
 	return fmt.Sprintf("/oapi/v1/codeup/repositories/%s/changeRequests", url.PathEscape(repo))
 }
 
+func (a *ChangeRequestAdapter) organizationChangeRequestsPath() string {
+	if a.client.IsCenter() {
+		return fmt.Sprintf("/oapi/v1/codeup/organizations/%s/changeRequests", url.PathEscape(a.client.OrganizationID()))
+	}
+	return "/oapi/v1/codeup/changeRequests"
+}
+
 func (a *ChangeRequestAdapter) changeRequestPath(repo, id string) string {
 	return a.changeRequestsPath(repo) + "/" + url.PathEscape(id)
 }
@@ -101,11 +110,24 @@ func decodeChangeRequest(data []byte) (app.MergeRequestDetail, error) {
 }
 
 func formatChangeRequestID(id int64) string {
+	if id == 0 {
+		return ""
+	}
 	return strconv.FormatInt(id, 10)
+}
+
+func firstNonZero(values ...int64) int64 {
+	for _, value := range values {
+		if value != 0 {
+			return value
+		}
+	}
+	return 0
 }
 
 type changeRequestResponse struct {
 	ID           int64  `json:"id"`
+	LocalID      int64  `json:"localId"`
 	Title        string `json:"title"`
 	State        string `json:"state"`
 	SourceBranch string `json:"sourceBranch"`

@@ -17,7 +17,7 @@ func TestMRListBuildsDefaultUseCaseFromConfigAndToken(t *testing.T) {
 		if r.Header.Get("x-yunxiao-token") != "token-1" {
 			t.Fatalf("missing token header")
 		}
-		if r.URL.Path != "/oapi/v1/codeup/organizations/org-1/repositories/repo-1/changeRequests" {
+		if r.URL.Path != "/oapi/v1/codeup/organizations/org-1/changeRequests" || r.URL.Query().Get("repositoryId") != "repo-1" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")

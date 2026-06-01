@@ -20,7 +20,7 @@ func TestChangeRequestAdapterListGetCreateMerge(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/oapi/v1/codeup/organizations/org-1/repositories/repo-1/changeRequests":
+		case r.Method == http.MethodGet && r.URL.Path == "/oapi/v1/codeup/organizations/org-1/changeRequests" && r.URL.Query().Get("repositoryId") == "repo-1":
 			_, _ = w.Write([]byte(`[{"id":11,"title":"Add feature","state":"opened","sourceBranch":"feat","targetBranch":"main"}]`))
 		case r.Method == http.MethodGet && r.URL.Path == "/oapi/v1/codeup/organizations/org-1/repositories/repo-1/changeRequests/11":
 			_, _ = w.Write([]byte(`{"id":11,"title":"Add feature","state":"opened","sourceBranch":"feat","targetBranch":"main","webUrl":"https://example.com/mr/11"}`))

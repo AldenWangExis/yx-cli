@@ -23,6 +23,12 @@ func TestAdapterProjectsAndWorkitems(t *testing.T) {
 		case r.Method == http.MethodPost && r.URL.Path == "/oapi/v1/projex/organizations/org-1/projects:search":
 			_, _ = w.Write([]byte(`[{"id":"p1","name":"Project One"}]`))
 		case r.Method == http.MethodPost && r.URL.Path == "/oapi/v1/projex/organizations/org-1/workitems:search":
+			body := make([]byte, r.ContentLength)
+			_, _ = r.Body.Read(body)
+			if !strings.Contains(string(body), `"category":"Task"`) {
+				_, _ = w.Write([]byte(`[]`))
+				return
+			}
 			_, _ = w.Write([]byte(`[{"id":"w1","subject":"Task One","status":{"name":"todo"},"workitemType":{"name":"task"},"space":{"id":"p1"}}]`))
 		case r.Method == http.MethodGet && r.URL.Path == "/oapi/v1/projex/organizations/org-1/workitems/w1":
 			_, _ = w.Write([]byte(`{"id":"w1","subject":"Task One","status":{"name":"todo"},"workitemType":{"name":"task"},"space":{"id":"p1"},"assignedTo":{"id":"u1"}}`))

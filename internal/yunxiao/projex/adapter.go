@@ -36,27 +36,29 @@ func (a *Adapter) ListProjects(ctx context.Context) ([]app.Project, error) {
 }
 
 func (a *Adapter) ListWorkitems(ctx context.Context, projectID string) ([]app.WorkitemListItem, error) {
-	body, err := json.Marshal(map[string]string{"spaceId": projectID})
-	if err != nil {
-		return nil, err
-	}
-	data, err := a.client.DoJSON(ctx, http.MethodPost, a.orgPath("/workitems:search"), nil, body)
-	if err != nil {
-		return nil, err
-	}
-	var response []workitemResponse
-	if err := json.Unmarshal(data, &response); err != nil {
-		return nil, fmt.Errorf("decode workitems: %w", err)
-	}
-	items := make([]app.WorkitemListItem, 0, len(response))
-	for _, item := range response {
-		items = append(items, app.WorkitemListItem{
-			ID:        item.ID,
-			Title:     item.Subject,
-			Status:    item.Status.Name,
-			Type:      item.WorkitemType.Name,
-			ProjectID: item.Space.ID,
-		})
+	items := []app.WorkitemListItem{}
+	for _, category := range []string{"Req", "Task", "Bug"} {
+		body, err := json.Marshal(map[string]string{"spaceId": projectID, "category": category})
+		if err != nil {
+			return nil, err
+		}
+		data, err := a.client.DoJSON(ctx, http.MethodPost, a.orgPath("/workitems:search"), nil, body)
+		if err != nil {
+			return nil, err
+		}
+		var response []workitemResponse
+		if err := json.Unmarshal(data, &response); err != nil {
+			return nil, fmt.Errorf("decode workitems: %w", err)
+		}
+		for _, item := range response {
+			items = append(items, app.WorkitemListItem{
+				ID:        item.ID,
+				Title:     item.Subject,
+				Status:    item.Status.Name,
+				Type:      item.WorkitemType.Name,
+				ProjectID: item.Space.ID,
+			})
+		}
 	}
 	return items, nil
 }

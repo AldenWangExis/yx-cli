@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/AldenWangExis/yx-cli/internal/app"
@@ -21,6 +22,14 @@ func TestWorkitemListBuildsDefaultUseCaseFromConfigAndToken(t *testing.T) {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
+		if r.Body != nil {
+			body := make([]byte, r.ContentLength)
+			_, _ = r.Body.Read(body)
+			if !strings.Contains(string(body), `"category":"Task"`) {
+				_, _ = w.Write([]byte(`[]`))
+				return
+			}
+		}
 		_, _ = w.Write([]byte(`[{"id":"w1","subject":"Task One","status":{"name":"todo"},"workitemType":{"name":"task"},"space":{"id":"p1"}}]`))
 	}))
 	defer server.Close()
