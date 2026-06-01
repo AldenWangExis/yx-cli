@@ -23,7 +23,7 @@ func resolveCurrentRepository(cmd *cobra.Command, opts Options) (app.CurrentRepo
 	if err != nil {
 		return app.CurrentRepository{}, err
 	}
-	workDir, err := currentWorkDir()
+	workDir, err := opts.currentWorkDir()
 	if err != nil {
 		return app.CurrentRepository{}, err
 	}
@@ -34,6 +34,9 @@ func resolveCurrentRepository(cmd *cobra.Command, opts Options) (app.CurrentRepo
 	})
 }
 
-func currentWorkDir() (string, error) {
+func (o Options) currentWorkDir() (string, error) {
+	if o.WorkDir != "" {
+		return o.WorkDir, nil
+	}
 	return os.Getwd()
 }

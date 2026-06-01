@@ -62,7 +62,7 @@ func newRepoCurrentCommand(opts Options) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workDir, err := currentWorkDir()
+			workDir, err := opts.currentWorkDir()
 			if err != nil {
 				return err
 			}

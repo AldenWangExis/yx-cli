@@ -94,9 +94,9 @@ func TestRepoCurrentBuildsDefaultResolverFromConfigTokenGitRemoteAndCaches(t *te
 	repoDir := filepath.Join(dir, "repo")
 	runGit(t, dir, "init", "repo")
 	runGit(t, repoDir, "remote", "add", "origin", "git@codeup.aliyun.com:org-1/yx-cli.git")
-	t.Chdir(repoDir)
 
-	stdout, stderr, err := executeCommand(t, NewRootCommandWithOptions(Options{ConfigPath: configPath}),
+	opts := Options{ConfigPath: configPath, WorkDir: repoDir}
+	stdout, stderr, err := executeCommand(t, NewRootCommandWithOptions(opts),
 		"--json", "repo", "current", "--refresh")
 	if err != nil {
 		t.Fatalf("expected repo current to succeed, got error: %v stderr=%s", err, stderr)
@@ -117,7 +117,7 @@ func TestRepoCurrentBuildsDefaultResolverFromConfigTokenGitRemoteAndCaches(t *te
 		t.Fatalf("expected repo identity cache, got %+v", loaded.Profiles["default"].RepoIdentityMap)
 	}
 
-	stdout, stderr, err = executeCommand(t, NewRootCommandWithOptions(Options{ConfigPath: configPath}),
+	stdout, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts),
 		"--json", "repo", "current")
 	if err != nil {
 		t.Fatalf("expected cached repo current to succeed, got error: %v stderr=%s", err, stderr)

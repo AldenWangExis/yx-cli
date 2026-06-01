@@ -19,6 +19,7 @@ type Options struct {
 	ConfigPath          string
 	AuthProvider        auth.Provider
 	DefaultProfile      string
+	WorkDir             string
 	RepoUseCase         RepositoryUseCase
 	RepoCurrentResolver RepositoryCurrentResolver
 	MergeRequestUseCase MergeRequestUseCase
