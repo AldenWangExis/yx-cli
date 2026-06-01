@@ -1,117 +1,118 @@
-# yx CLI Design
+# yx CLI 设计文档
 
-Date: 2026-06-01
+日期：2026-06-01
 
-## Purpose
+## 目标
 
-`yx` is a Go-based command-line client for Alibaba Cloud Yunxiao daily developer workflows. It provides a `gh`-like experience while keeping Yunxiao's domain model explicit: Codeup repositories and merge requests, Flow pipelines, and Projex projects/work items.
+`yx` 是一个用 Go 开发的阿里云云效命令行客户端，面向日常研发工作流。它提供接近 `gh` 的使用体验，同时保留云效自身的领域模型：Codeup 代码库与合并请求、Flow 流水线、Projex 项目与工作项。
 
-The first release targets the common development loop:
+第一版聚焦常见研发闭环：
 
-- Authenticate and manage local profiles.
-- List, inspect, and clone Codeup repositories.
-- List, inspect, create, and merge Codeup merge requests.
-- List, inspect, create, and update Projex work items.
-- List, inspect, run, and inspect logs for Flow pipelines.
-- Provide GitHub-style aliases where they are unambiguous: `pr` for merge requests and `issue` for work items.
+- 登录认证与本地 profile 管理。
+- 查看、详情、克隆 Codeup 代码库。
+- 查看、详情、创建、合并 Codeup 合并请求。
+- 查看、详情、创建、更新 Projex 工作项。
+- 查看、详情、运行 Flow 流水线，并查看流水线日志。
+- 在语义明确的地方提供 GitHub 风格 alias：`pr` 对应合并请求，`issue` 对应工作项。
 
-## Scope
+## 范围
 
-### In Scope
+### 第一版范围
 
-- Go single-binary CLI built with Cobra.
-- Multi-profile configuration.
-- Personal access token authentication for MVP.
-- Authentication provider abstraction that allows OAuth/browser login later.
-- Secure token storage with system keychain preferred and a restricted local file fallback.
-- Default table output and machine-readable `--json` output.
-- Outside-In TDD development flow.
-- API client adapters for the Yunxiao OpenAPI surfaces needed by the MVP.
-- Git operations for repository clone by invoking the system `git` executable.
-- Safety controls for write operations, including `--dry-run`, `--yes`, and profile-level write confirmation.
+- 使用 Go 开发单二进制 CLI。
+- 使用 Cobra 作为命令框架。
+- 支持多 profile 配置。
+- MVP 使用个人访问令牌认证。
+- 认证层预留 provider 抽象，后续可扩展 OAuth 或浏览器登录。
+- token 优先存入系统 keychain；不可用时降级为权限受限的本地文件。
+- 默认输出终端可读表格，同时支持机器可读的 `--json` 输出。
+- 开发方式采用 Outside-In TDD。
+- 为 MVP 所需云效 OpenAPI 提供 API adapter。
+- 仓库克隆通过调用系统 `git` 可执行文件完成。
+- 写操作提供安全控制，包括 `--dry-run`、`--yes` 和 profile 级写操作确认开关。
 
-### Out of Scope
+### 第一版不做
 
-- Long-running or bidirectional repository synchronization.
-- Full Kanban board view, column, swimlane, or layout configuration.
-- Dependency on Alibaba Cloud DevOps MCP Server.
-- OAuth implementation in the first release.
-- Complete coverage of every Yunxiao OpenAPI.
-- Admin-console replacement features such as organization-wide permission management.
+- 长期运行或双向代码仓库同步。
+- 完整看板视图、列、泳道、布局配置。
+- 依赖阿里云 DevOps MCP Server。
+- 第一版实现 OAuth。
+- 覆盖云效全部 OpenAPI。
+- 替代云效管理后台，例如组织级权限管理。
 
-## Functional Requirements
+## 功能需求
 
-### FR1: Authentication And Profiles
+### FR1：认证与 Profile
 
-- The CLI must support `yx auth login`, `yx auth status`, and `yx auth logout`.
-- The MVP login flow must accept a Yunxiao personal access token.
-- The CLI must support multiple named profiles and a current active profile.
-- The CLI must allow per-command profile override with `--profile`.
-- The CLI must never print token values in stdout, stderr, logs, errors, or snapshots.
+- CLI 必须支持 `yx auth login`、`yx auth status`、`yx auth logout`。
+- MVP 登录流程必须接受云效个人访问令牌。
+- CLI 必须支持多个命名 profile，并支持当前激活 profile。
+- CLI 必须支持通过 `--profile` 覆盖单次命令使用的 profile。
+- CLI 不得在 stdout、stderr、日志、错误信息或测试快照中打印 token 值。
 
-### FR2: Configuration
+### FR2：配置
 
-- The CLI must read and write configuration at `~/.config/yx/config.yaml` by default.
-- The CLI must support `yx config list`, `yx config get`, `yx config set`, and `yx config use`.
-- The CLI must support profile fields for domain, organization, region, output mode, safety settings, and repository-to-project mapping.
-- Unknown config keys must be rejected unless they belong to an explicitly extensible namespace.
+- CLI 默认必须读写 `~/.config/yx/config.yaml`。
+- CLI 必须支持 `yx config list`、`yx config get`、`yx config set`、`yx config use`。
+- CLI 的 profile 配置必须支持 domain、organization、region、output mode、safety settings、repository-to-project mapping。
+- 未知配置 key 必须被拒绝，除非它属于明确声明可扩展的命名空间。
 
-### FR3: Repository Commands
+### FR3：代码库命令
 
-- The CLI must support listing Codeup repositories.
-- The CLI must support viewing a single repository.
-- The CLI must support cloning a repository by resolving Codeup metadata and invoking the system `git` executable.
-- The CLI must not implement the Git transport protocol itself.
+- CLI 必须支持列出 Codeup 代码库。
+- CLI 必须支持查看单个代码库详情。
+- CLI 必须支持通过 Codeup 元数据解析 clone URL，并调用系统 `git` 可执行文件克隆代码库。
+- CLI 不得自行实现 Git 传输协议。
 
-### FR4: Merge Request Commands
+### FR4：合并请求命令
 
-- The CLI must support listing merge requests for a repository.
-- The CLI must support viewing a merge request.
-- The CLI must support creating a merge request from source and target branches.
-- The CLI must support merging a merge request.
-- The CLI must provide `pr` as an alias for `mr`.
+- CLI 必须支持列出某个代码库的合并请求。
+- CLI 必须支持查看合并请求详情。
+- CLI 必须支持基于 source branch 和 target branch 创建合并请求。
+- CLI 必须支持合并合并请求。
+- CLI 必须提供 `pr` 作为 `mr` 的 alias。
 
-### FR5: Project And Work Item Commands
+### FR5：项目与工作项命令
 
-- The CLI must support listing Projex projects.
-- The CLI must support listing, viewing, creating, and updating work items.
-- The CLI must provide `issue` as an alias for `workitem`.
-- Work item commands must treat Projex project as the authoritative context.
-- Repository-based issue commands must require explicit repository-to-project mapping.
-- If a repository-to-project mapping is missing, the command must fail before sending any Yunxiao API request.
+- CLI 必须支持列出 Projex 项目。
+- CLI 必须支持列出、查看、创建、更新工作项。
+- CLI 必须提供 `issue` 作为 `workitem` 的 alias。
+- 工作项命令必须以 Projex 项目作为权威上下文。
+- 基于仓库的 issue 命令必须要求显式配置 repository-to-project mapping。
+- 如果缺少 repository-to-project mapping，命令必须在发送任何云效 API 请求前失败。
 
-### FR6: Pipeline Commands
+### FR6：流水线命令
 
-- The CLI must support listing pipelines.
-- The CLI must support viewing a pipeline.
-- The CLI must support running a pipeline for a branch.
-- The CLI must support viewing pipeline run logs.
-- Log following may stream or poll, but must keep a stable command contract for `yx pipeline logs <run-id> --follow`.
+- CLI 必须支持列出流水线。
+- CLI 必须支持查看流水线详情。
+- CLI 必须支持针对某个 branch 运行流水线。
+- CLI 必须支持查看流水线运行日志。
+- 日志跟随可以采用流式或轮询实现，但 `yx pipeline logs <run-id> --follow` 的命令契约必须稳定。
 
-### FR7: Output
+### FR7：输出
 
-- The default human output must be table-oriented and readable in a terminal.
-- List and detail commands must support `--json`.
-- JSON output must use stable field names suitable for scripts.
-- Error messages must be written to stderr and must produce non-zero exit codes.
+- 默认人类可读输出必须采用适合终端阅读的表格样式。
+- 列表和详情命令必须支持 `--json`。
+- JSON 输出必须使用适合脚本消费的稳定字段名。
+- 错误信息必须写入 stderr，并返回非零退出码。
 
-### FR8: Write Safety
+### FR8：写操作安全
 
-- All write commands must support `--dry-run`.
-- Write commands must honor `profiles.<name>.safety.confirmWrites`.
-- Write commands must honor `--yes` when confirmation is required.
-- In non-interactive environments, write commands that require confirmation must fail unless `--yes` is present.
+- 所有写命令必须支持 `--dry-run`。
+- 写命令必须遵守 `profiles.<name>.safety.confirmWrites`。
+- 当需要确认时，写命令必须支持 `--yes` 跳过确认。
+- 在非交互环境中，如果写命令需要确认但没有传入 `--yes`，命令必须失败。
 
-### FR9: Testability
+### FR9：可测试性
 
-- Every MVP command must have at least one CLI contract test before implementation.
-- CLI contract tests must use fake application services and must not require Yunxiao credentials or network access.
-- Every Yunxiao adapter must have mock server tests for success and failure cases.
-- `go test ./...` must pass offline.
+- 每个 MVP 命令在实现前必须至少有一个 CLI contract test。
+- CLI contract test 必须使用 fake application service，不得依赖云效凭据或网络。
+- 每个 Yunxiao adapter 必须有 mock server 测试，覆盖成功与失败响应。
+- `go test ./...` 必须能离线通过。
 
-## Architecture
+## 架构
 
-The first release is a Go monolith with explicit internal boundaries. Command handlers stay thin; they parse flags, load context, call application services, and render output. Yunxiao HTTP behavior is isolated in adapter packages. Git content operations are delegated to the local `git` executable.
+第一版采用带清晰内部边界的 Go 单体 CLI。Command handler 保持轻量，只负责解析 flag、加载上下文、调用 application service、渲染输出。云效 HTTP 行为隔离在 adapter 包中。Git 内容操作委托给本地 `git` 可执行文件。
 
 ```text
 cmd/yx
@@ -177,7 +178,7 @@ internal/safety
   confirm.go
 ```
 
-### Dependency Direction
+### 依赖方向
 
 ```text
 CLI command
@@ -187,13 +188,13 @@ CLI command
   -> external system
 ```
 
-The CLI and application layers depend on port interfaces, not concrete HTTP clients. Yunxiao adapters implement those interfaces.
+CLI 层和 application 层依赖 port interface，而不是具体 HTTP client。Yunxiao adapter 负责实现这些 interface。
 
-This preserves testability and keeps OpenAPI details from leaking into command semantics.
+这个方向保证可测试性，也避免 OpenAPI 细节泄漏到命令语义中。
 
-## Command Surface
+## 命令面
 
-### Authentication
+### 认证
 
 ```bash
 yx auth login
@@ -201,9 +202,9 @@ yx auth status
 yx auth logout
 ```
 
-MVP login accepts a Yunxiao personal access token. The command stores the token for the active or selected profile.
+MVP 登录接受云效个人访问令牌，并把 token 保存到当前或指定 profile。
 
-### Configuration
+### 配置
 
 ```bash
 yx config list
@@ -212,7 +213,7 @@ yx config set <key> <value>
 yx config use <profile>
 ```
 
-Global flags available to relevant commands:
+相关命令支持的全局 flag：
 
 ```bash
 --profile <name>
@@ -222,7 +223,7 @@ Global flags available to relevant commands:
 --verbose
 ```
 
-### Repositories
+### 代码库
 
 ```bash
 yx repo list
@@ -230,9 +231,9 @@ yx repo view <repo>
 yx repo clone <repo>
 ```
 
-`repo clone` resolves the repository clone URL through Codeup metadata and calls the system `git` executable. It does not implement the Git protocol in Go.
+`repo clone` 通过 Codeup 元数据解析仓库 clone URL，并调用系统 `git` 可执行文件。它不在 Go 中实现 Git 协议。
 
-### Merge Requests
+### 合并请求
 
 ```bash
 yx mr list --repo <repo>
@@ -241,15 +242,15 @@ yx mr create --repo <repo> --source <branch> --target <branch> --title <title>
 yx mr merge <mr-id> --repo <repo>
 ```
 
-Alias:
+Alias：
 
 ```bash
 yx pr ...
 ```
 
-`pr` is a command alias for `mr`. Output and behavior are identical.
+`pr` 是 `mr` 的命令 alias，输出和行为保持一致。
 
-### Projects And Work Items
+### 项目与工作项
 
 ```bash
 yx project list
@@ -259,23 +260,23 @@ yx workitem create --project <project> --type <type> --title <title>
 yx workitem update <workitem-id> --status <status> --assignee <user>
 ```
 
-Alias:
+Alias：
 
 ```bash
 yx issue ...
 ```
 
-`issue` is an alias for `workitem`, but Yunxiao work items remain the source domain model.
+`issue` 是 `workitem` 的 alias，但云效工作项仍然是源领域模型。
 
-The authoritative context for work items is a Projex project. `yx issue list --repo <repo>` is allowed only when the local config maps the repository to a project. If no mapping exists, the command fails with a clear message:
+工作项的权威上下文是 Projex 项目。只有在本地配置了仓库到项目的映射时，才允许 `yx issue list --repo <repo>`。如果缺少映射，命令必须给出明确错误：
 
 ```text
 repo "foo" is not mapped to a project; run yx config set repo.foo.project <project-id>
 ```
 
-The CLI must not infer this mapping by scanning all organization projects.
+CLI 不得通过扫描组织内所有项目来猜测这个映射。
 
-### Pipelines
+### 流水线
 
 ```bash
 yx pipeline list
@@ -284,15 +285,15 @@ yx pipeline run <pipeline-id> --branch <branch>
 yx pipeline logs <run-id> --follow
 ```
 
-## Configuration Model
+## 配置模型
 
-The default config path is:
+默认配置路径：
 
 ```text
 ~/.config/yx/config.yaml
 ```
 
-Config shape:
+配置结构：
 
 ```yaml
 current: default
@@ -308,32 +309,32 @@ profiles:
       my-repo: "<project-id>"
 ```
 
-Rules:
+规则：
 
-- `current` identifies the active profile.
-- `--profile` overrides `current` for a single invocation.
-- `--domain` and `--org` override profile values for a single invocation.
-- `region` is used by the endpoint resolver to handle center and regional endpoint differences.
-- Unknown config keys are rejected unless they are under an explicitly extensible namespace.
+- `current` 表示当前激活 profile。
+- `--profile` 对单次调用覆盖 `current`。
+- `--domain` 和 `--org` 对单次调用覆盖 profile 中的值。
+- `region` 由 endpoint resolver 使用，用于处理中心版和 Region 版 endpoint 差异。
+- 未知配置 key 必须被拒绝，除非它位于明确声明可扩展的命名空间下。
 
-## Authentication Model
+## 认证模型
 
-MVP uses PAT authentication:
+MVP 使用 PAT 认证：
 
 ```bash
 yx auth login --profile default
 ```
 
-The user pastes a Yunxiao personal access token. The token is stored outside the main YAML config.
+用户粘贴云效个人访问令牌。token 存储在主 YAML 配置之外。
 
-Token storage priority:
+token 存储优先级：
 
-1. System keychain.
-2. Local file fallback with `0600` permissions.
+1. 系统 keychain。
+2. 权限为 `0600` 的本地文件 fallback。
 
-`yx auth status` shows the active profile, organization, domain, token presence, and token storage backend. It never prints the token.
+`yx auth status` 展示当前 profile、organization、domain、token 是否存在、token 存储后端。它绝不打印 token。
 
-The auth package exposes a provider interface so OAuth/browser login can be added later without changing command handlers:
+auth 包暴露 provider interface，便于后续增加 OAuth 或浏览器登录，而不需要修改 command handler：
 
 ```go
 type Provider interface {
@@ -343,35 +344,35 @@ type Provider interface {
 }
 ```
 
-The exact interface may evolve during implementation, but the boundary remains: command handlers depend on an auth provider abstraction, not directly on PAT storage.
+具体 interface 可以在实现过程中演进，但边界保持不变：command handler 依赖 auth provider 抽象，而不是直接依赖 PAT 存储。
 
-## Safety Model
+## 安全模型
 
-Default behavior follows `gh`-style command execution: explicit write commands execute without additional confirmation.
+默认行为接近 `gh`：用户显式执行写命令时，命令直接执行，不额外确认。
 
-Safety controls:
+安全控制：
 
-- `--dry-run` is supported by all write operations and prints the intended operation without sending a write request.
-- `--yes` skips confirmation when confirmation is required.
-- `profiles.<name>.safety.confirmWrites: true` requires confirmation for write operations such as merge request merge, work item update, and pipeline run.
-- Future destructive or force operations must always require confirmation, regardless of `confirmWrites`.
-- In non-interactive environments, if confirmation is required and `--yes` is not present, the command fails.
+- 所有写操作都支持 `--dry-run`，打印将要执行的操作，不发送写请求。
+- 当需要确认时，`--yes` 跳过确认。
+- `profiles.<name>.safety.confirmWrites: true` 会要求合并 MR、更新工作项、运行流水线等写操作进行确认。
+- 未来如果加入删除、强制覆盖等高风险操作，无论 `confirmWrites` 如何配置，都必须确认。
+- 在非交互环境中，如果需要确认但没有传入 `--yes`，命令失败。
 
-The MVP contains no destructive commands such as repository deletion.
+MVP 不包含删除代码库等破坏性命令。
 
-## Yunxiao API Client Design
+## Yunxiao API Client 设计
 
-The base client owns:
+基础 client 负责：
 
-- Base URL.
-- Organization context.
-- Region/endpoint resolution.
-- Token injection through `x-yunxiao-token`.
-- HTTP client.
-- Pagination helpers.
-- Structured API error conversion.
+- Base URL。
+- Organization 上下文。
+- Region 与 endpoint 解析。
+- 通过 `x-yunxiao-token` 注入 token。
+- HTTP client。
+- 分页 helper。
+- 结构化 API 错误转换。
 
-Domain adapters:
+领域 adapter：
 
 ```text
 codeup.RepositoryAdapter
@@ -381,28 +382,28 @@ projex.ProjectAdapter
 projex.WorkitemAdapter
 ```
 
-Adapters return internal domain models rather than exposing raw OpenAPI response structs to CLI handlers.
+adapter 返回内部领域模型，不把原始 OpenAPI response struct 暴露给 CLI handler。
 
-### Endpoint Resolution
+### Endpoint 解析
 
-Center and regional endpoint differences are resolved below the application layer. Command handlers do not build OpenAPI paths.
+中心版和 Region 版 endpoint 差异在 application 层以下解决。Command handler 不构造 OpenAPI path。
 
-If endpoint resolution cannot produce a valid request because profile data is incomplete, the command returns an actionable error that names the missing fields.
+如果 profile 数据不完整，导致无法解析 endpoint，命令必须返回可操作错误，并指出缺失字段。
 
-### Error Handling
+### 错误处理
 
-Errors are normalized into categories:
+错误归一为以下类别：
 
-- Authentication error: invalid or missing token.
-- Authorization error: token lacks required permissions or organization context is wrong.
-- Not found: repository, project, work item, merge request, pipeline, or run not found.
-- Validation error: invalid command arguments or API-side validation failure.
-- Rate limit or transient service error.
-- Unknown API error.
+- 认证错误：token 无效或缺失。
+- 授权错误：token 权限不足或组织上下文不匹配。
+- Not found：代码库、项目、工作项、合并请求、流水线或运行实例不存在。
+- 校验错误：命令参数无效或 API 侧校验失败。
+- 限流或临时服务错误。
+- 未知 API 错误。
 
-Verbose mode may print request path and request ID. It must not print tokens or secrets.
+Verbose 模式可以打印 request path 和 request ID，但不得打印 token 或密钥。
 
-## Data Flow Examples
+## 数据流示例
 
 ### `yx mr list --repo demo --json`
 
@@ -428,7 +429,7 @@ CLI parses flags
   -> output renders table
 ```
 
-If the mapping is missing, the app layer returns a mapping error and no API request is sent.
+如果缺少映射，app 层返回 mapping error，并且不发送 API 请求。
 
 ### `yx pipeline run pipe1 --branch main --dry-run`
 
@@ -440,68 +441,68 @@ CLI parses flags
   -> no API request is sent
 ```
 
-## Outside-In TDD Strategy
+## Outside-In TDD 策略
 
-Development proceeds from user-visible behavior inward.
+开发从用户可见行为向内推进。
 
-### 1. CLI Contract Tests First
+### 1. 先写 CLI Contract Test
 
-Each MVP command starts with a CLI-level test that verifies:
+每个 MVP 命令先从 CLI 层测试开始，验证：
 
-- Command exists.
-- Required flags and arguments.
-- Exit code.
-- stdout and stderr behavior.
-- JSON schema when `--json` is set.
-- Confirmation and dry-run behavior for writes.
+- 命令存在。
+- 必填 flag 与参数。
+- 退出码。
+- stdout 与 stderr 行为。
+- 设置 `--json` 时的 JSON schema。
+- 写命令的确认和 dry-run 行为。
 
-CLI tests use fake application services. They must not require Yunxiao tokens or network access.
+CLI 测试使用 fake application service，不依赖云效 token 或网络。
 
-### 2. Application Use Case Tests
+### 2. Application Use Case 测试
 
-Application tests cover command semantics that should not live in the CLI parser:
+Application 测试覆盖不应该放在 CLI parser 里的命令语义：
 
-- Repository-to-project mapping.
-- Dry-run operation summaries.
-- Confirmation decisions.
-- Work item alias behavior.
-- Merge request alias behavior.
-- Normalization of service results before output.
+- 仓库到项目的映射。
+- dry-run 操作摘要。
+- 确认策略判断。
+- workitem alias 行为。
+- merge request alias 行为。
+- service result 输出前的规范化。
 
-### 3. Adapter Tests With Mock Servers
+### 3. Adapter Mock Server 测试
 
-Yunxiao adapters are tested with mock HTTP servers. These tests verify:
+Yunxiao adapter 使用 mock HTTP server 测试。测试必须验证：
 
-- Request path.
-- Query parameters.
-- Request body.
-- `x-yunxiao-token` header.
-- Pagination.
-- API error conversion.
-- No token leakage in returned errors.
+- 请求 path。
+- query 参数。
+- request body。
+- `x-yunxiao-token` header。
+- 分页。
+- API 错误转换。
+- 返回错误中没有 token 泄漏。
 
-### 4. Optional Real-Service Smoke Tests
+### 4. 可选真实服务 Smoke Test
 
-Real Yunxiao smoke tests may be added later, gated behind explicit environment variables. They are not part of the default `go test ./...` path.
+后续可以增加真实云效 smoke test，但必须通过显式环境变量开启。它们不属于默认 `go test ./...` 路径。
 
-## Milestones
+## 里程碑
 
-### M1: Foundation
+### M1：基础能力
 
-- Go module and Cobra command skeleton.
-- Config load/save.
-- Profile selection.
-- Output renderer.
-- Safety confirmation layer.
-- PAT auth provider and token store abstraction.
+- Go module 与 Cobra command skeleton。
+- 配置读写。
+- Profile 选择。
+- 输出 renderer。
+- 写操作确认层。
+- PAT auth provider 与 token store 抽象。
 
-### M2: Repository Commands
+### M2：代码库命令
 
 - `repo list`
 - `repo view`
 - `repo clone`
 
-### M3: Merge Request Commands
+### M3：合并请求命令
 
 - `mr list`
 - `mr view`
@@ -509,7 +510,7 @@ Real Yunxiao smoke tests may be added later, gated behind explicit environment v
 - `mr merge`
 - `pr` alias
 
-### M4: Project And Work Item Commands
+### M4：项目与工作项命令
 
 - `project list`
 - `workitem list`
@@ -517,39 +518,39 @@ Real Yunxiao smoke tests may be added later, gated behind explicit environment v
 - `workitem create`
 - `workitem update`
 - `issue` alias
-- repo-to-project mapping support for issue alias commands
+- issue alias 命令支持 repo-to-project mapping
 
-### M5: Pipeline Commands
+### M5：流水线命令
 
 - `pipeline list`
 - `pipeline view`
 - `pipeline run`
 - `pipeline logs`
 
-### M6: Packaging And Documentation
+### M6：打包与文档
 
-- README with setup and examples.
-- Release build instructions.
-- Shell completion if low-risk.
-- Optional install script or Homebrew tap plan.
+- README，包含 setup 和示例。
+- Release build 说明。
+- 如果风险低，提供 shell completion。
+- 可选 install script 或 Homebrew tap 规划。
 
-## Acceptance Criteria
+## 验收标准
 
-- `go test ./...` passes without network access or Yunxiao credentials.
-- Every MVP command has at least one CLI contract test.
-- Every Yunxiao adapter has mock server tests for successful and failing responses.
-- List and detail commands support `--json`.
-- Default output is readable table output.
-- Write commands support `--dry-run`.
-- Write commands respect `--yes` and `safety.confirmWrites`.
-- Token values never appear in logs, errors, stdout, stderr, or golden snapshots.
-- The README explains PAT login, profile configuration, repository commands, merge request commands, work item commands, and pipeline commands.
+- `go test ./...` 在没有网络和云效凭据的情况下通过。
+- 每个 MVP 命令至少有一个 CLI contract test。
+- 每个 Yunxiao adapter 都有 mock server 测试，覆盖成功和失败响应。
+- 列表和详情命令支持 `--json`。
+- 默认输出为可读表格。
+- 写命令支持 `--dry-run`。
+- 写命令遵守 `--yes` 和 `safety.confirmWrites`。
+- token 值绝不出现在日志、错误、stdout、stderr 或 golden snapshot 中。
+- README 说明 PAT 登录、profile 配置、代码库命令、合并请求命令、工作项命令和流水线命令。
 
-## Open Semantics Resolved
+## 已收敛语义
 
-- The first release is scope B: daily development loop, not full platform administration.
-- Authentication is PAT-first with a provider abstraction for future OAuth.
-- Work items are project-first; repository-based issue commands require explicit local mapping.
-- Write confirmation is configurable; default behavior is direct execution for explicit write commands.
-- TDD style is Outside-In: CLI contract tests define behavior before internal adapters are implemented.
-- The implementation is a pure Go single-binary CLI. MCP Server integration is a future extension, not a runtime dependency.
+- 第一版范围是 B：日常研发闭环，不做完整平台管理。
+- 认证是 PAT-first，并通过 provider 抽象预留未来 OAuth。
+- 工作项是项目优先；基于仓库的 issue 命令要求显式本地映射。
+- 写操作确认可配置；默认对显式写命令直接执行。
+- TDD 风格是 Outside-In：先用 CLI contract test 定义行为，再实现内部 adapter。
+- 实现形态是纯 Go 单二进制 CLI。MCP Server 集成是未来扩展，不是运行时依赖。
