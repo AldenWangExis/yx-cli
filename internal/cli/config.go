@@ -6,13 +6,16 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/AldenWangExis/yx-cli/internal/auth"
 	"github.com/AldenWangExis/yx-cli/internal/config"
 	"github.com/AldenWangExis/yx-cli/internal/output"
 	"github.com/spf13/cobra"
 )
 
 type Options struct {
-	ConfigPath string
+	ConfigPath     string
+	AuthProvider   auth.Provider
+	DefaultProfile string
 }
 
 func defaultOptions() Options {
@@ -21,6 +24,13 @@ func defaultOptions() Options {
 		home = "."
 	}
 	return Options{ConfigPath: filepath.Join(home, ".config", "yx", "config.yaml")}
+}
+
+func (o Options) authProvider() auth.Provider {
+	if o.AuthProvider != nil {
+		return o.AuthProvider
+	}
+	return auth.NewPATProvider(auth.NewFileTokenStore(defaultTokenPath(o.ConfigPath)))
 }
 
 func newConfigCommand(opts Options) *cobra.Command {
