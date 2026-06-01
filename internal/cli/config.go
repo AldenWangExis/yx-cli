@@ -155,6 +155,11 @@ func getValue(cfg config.Config, key string) (string, bool) {
 	case "safety.confirmWrites":
 		return strconv.FormatBool(profile.Safety.ConfirmWrites), true
 	default:
+		const serviceConnectionPrefix = "serviceConnections."
+		if len(field) > len(serviceConnectionPrefix) && field[:len(serviceConnectionPrefix)] == serviceConnectionPrefix {
+			value, ok := profile.ServiceConnections[field[len(serviceConnectionPrefix):]]
+			return value, ok
+		}
 		const prefix = "repoProjectMap."
 		if len(field) > len(prefix) && field[:len(prefix)] == prefix {
 			value, ok := profile.RepoProjectMap[field[len(prefix):]]
@@ -178,6 +183,9 @@ func setValue(cfg *config.Config, key, value string) error {
 		return fmt.Errorf("unknown config key %q", key)
 	}
 	profile := cfg.Profiles[profileName]
+	if profile.ServiceConnections == nil {
+		profile.ServiceConnections = map[string]string{}
+	}
 	if profile.RepoProjectMap == nil {
 		profile.RepoProjectMap = map[string]string{}
 	}
@@ -198,6 +206,11 @@ func setValue(cfg *config.Config, key, value string) error {
 		}
 		profile.Safety.ConfirmWrites = parsed
 	default:
+		const serviceConnectionPrefix = "serviceConnections."
+		if len(field) > len(serviceConnectionPrefix) && field[:len(serviceConnectionPrefix)] == serviceConnectionPrefix {
+			profile.ServiceConnections[field[len(serviceConnectionPrefix):]] = value
+			break
+		}
 		const prefix = "repoProjectMap."
 		if len(field) <= len(prefix) || field[:len(prefix)] != prefix {
 			return fmt.Errorf("unknown config key %q", key)

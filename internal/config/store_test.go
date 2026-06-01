@@ -36,6 +36,9 @@ func TestSaveAndLoadConfig(t *testing.T) {
 				Safety: Safety{
 					ConfirmWrites: true,
 				},
+				ServiceConnections: map[string]string{
+					"codeup": "ijhr7pdz5567r9p6",
+				},
 				RepoProjectMap: map[string]string{
 					"repo-a": "project-a",
 				},
@@ -59,6 +62,9 @@ func TestSaveAndLoadConfig(t *testing.T) {
 	}
 	if !loaded.Profiles["default"].Safety.ConfirmWrites {
 		t.Fatal("expected safety.confirmWrites to round-trip")
+	}
+	if loaded.Profiles["default"].ServiceConnections["codeup"] != "ijhr7pdz5567r9p6" {
+		t.Fatalf("expected service connection to round-trip")
 	}
 	if loaded.Profiles["default"].RepoProjectMap["repo-a"] != "project-a" {
 		t.Fatalf("expected repo project mapping to round-trip")

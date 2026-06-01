@@ -33,6 +33,20 @@ func TestConfigCommandsSetGetUseAndList(t *testing.T) {
 	}
 
 	_, stderr, err = executeCommand(t, NewRootCommandWithOptions(Options{ConfigPath: configPath}),
+		"config", "set", "profiles.default.serviceConnections.codeup", "ijhr7pdz5567r9p6")
+	if err != nil {
+		t.Fatalf("expected service connection config set to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	stdout, stderr, err = executeCommand(t, NewRootCommandWithOptions(Options{ConfigPath: configPath}),
+		"config", "get", "profiles.default.serviceConnections.codeup")
+	if err != nil {
+		t.Fatalf("expected service connection config get to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	if strings.TrimSpace(stdout) != "ijhr7pdz5567r9p6" {
+		t.Fatalf("expected config get to print service connection, got:\n%s", stdout)
+	}
+
+	_, stderr, err = executeCommand(t, NewRootCommandWithOptions(Options{ConfigPath: configPath}),
 		"config", "use", "default")
 	if err != nil {
 		t.Fatalf("expected config use to succeed, got error: %v stderr=%s", err, stderr)
@@ -57,6 +71,9 @@ func TestConfigCommandsSetGetUseAndList(t *testing.T) {
 	}
 	if listed.Profiles["default"].Domain != "https://devops.aliyun.com" {
 		t.Fatalf("expected JSON config to include profile domain")
+	}
+	if listed.Profiles["default"].ServiceConnections["codeup"] != "ijhr7pdz5567r9p6" {
+		t.Fatalf("expected JSON config to include service connection")
 	}
 }
 

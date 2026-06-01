@@ -16,12 +16,13 @@ type Config struct {
 }
 
 type Profile struct {
-	Domain         string            `yaml:"domain"`
-	Organization   string            `yaml:"organization"`
-	Region         string            `yaml:"region"`
-	Output         string            `yaml:"output"`
-	Safety         Safety            `yaml:"safety"`
-	RepoProjectMap map[string]string `yaml:"repoProjectMap"`
+	Domain             string            `yaml:"domain"`
+	Organization       string            `yaml:"organization"`
+	Region             string            `yaml:"region"`
+	Output             string            `yaml:"output"`
+	Safety             Safety            `yaml:"safety"`
+	ServiceConnections map[string]string `yaml:"serviceConnections"`
+	RepoProjectMap     map[string]string `yaml:"repoProjectMap"`
 }
 
 type Safety struct {
@@ -117,6 +118,9 @@ func normalize(cfg *Config) {
 		cfg.Profiles = map[string]Profile{}
 	}
 	for name, profile := range cfg.Profiles {
+		if profile.ServiceConnections == nil {
+			profile.ServiceConnections = map[string]string{}
+		}
 		if profile.RepoProjectMap == nil {
 			profile.RepoProjectMap = map[string]string{}
 		}
