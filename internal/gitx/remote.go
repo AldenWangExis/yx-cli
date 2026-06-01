@@ -23,16 +23,19 @@ type CodeupRemote struct {
 }
 
 func (r *Runner) ListRemotes(ctx context.Context, workDir string) ([]Remote, error) {
-	args := []string{"remote", "-v"}
+	args := []string{"config", "--get-regexp", `^remote\..*\.url$`}
 	if workDir != "" {
 		args = append([]string{"-C", workDir}, args...)
 	}
 	cmd := exec.CommandContext(ctx, "git", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("git remote -v failed: %s", strings.TrimSpace(string(output)))
+		if strings.TrimSpace(string(output)) == "" {
+			return []Remote{}, nil
+		}
+		return nil, fmt.Errorf("git remote config failed: %s", strings.TrimSpace(string(output)))
 	}
-	return ParseRemoteVerboseOutput(string(output)), nil
+	return ParseRemoteConfigOutput(string(output)), nil
 }
 
 func ParseRemoteVerboseOutput(output string) []Remote {
@@ -49,6 +52,22 @@ func ParseRemoteVerboseOutput(output string) []Remote {
 		}
 		seen[name] = true
 		remotes = append(remotes, Remote{Name: name, URL: fields[1]})
+	}
+	return remotes
+}
+
+func ParseRemoteConfigOutput(output string) []Remote {
+	remotes := []Remote{}
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		keyParts := strings.Split(fields[0], ".")
+		if len(keyParts) != 3 || keyParts[0] != "remote" || keyParts[2] != "url" {
+			continue
+		}
+		remotes = append(remotes, Remote{Name: keyParts[1], URL: fields[1]})
 	}
 	return remotes
 }

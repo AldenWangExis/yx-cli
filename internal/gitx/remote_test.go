@@ -1,6 +1,11 @@
 package gitx
 
-import "testing"
+import (
+	"context"
+	"os/exec"
+	"path/filepath"
+	"testing"
+)
 
 func TestParseCodeupRemoteURL(t *testing.T) {
 	tests := []struct {
@@ -81,5 +86,51 @@ github	git@github.com:org/repo.git (fetch)
 	}
 	if remotes[1].Name != "github" {
 		t.Fatalf("unexpected second remote: %+v", remotes[1])
+	}
+}
+
+func TestParseGitRemoteConfigOutput(t *testing.T) {
+	remotes := ParseRemoteConfigOutput(`remote.origin.url git@codeup.aliyun.com:org/repo.git
+remote.github.url git@github.com:org/repo.git
+`)
+
+	if len(remotes) != 2 {
+		t.Fatalf("expected two remotes, got %+v", remotes)
+	}
+	if remotes[0].Name != "origin" || remotes[0].URL != "git@codeup.aliyun.com:org/repo.git" {
+		t.Fatalf("unexpected first remote: %+v", remotes[0])
+	}
+	if remotes[1].Name != "github" {
+		t.Fatalf("unexpected second remote: %+v", remotes[1])
+	}
+}
+
+func TestRunnerListRemotesUsesRawConfigBeforeGitURLRewrite(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "repo")
+	runGit(t, "", "init", dir)
+	runGit(t, dir, "remote", "add", "origin", "git@codeup.aliyun.com:org-1/yx-cli.git")
+	runGit(t, dir, "config", "url.https://oauth2:secret-token@codeup.aliyun.com/.insteadOf", "git@codeup.aliyun.com:")
+
+	remotes, err := NewRunner().ListRemotes(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("expected remotes to list, got: %v", err)
+	}
+	if len(remotes) != 1 {
+		t.Fatalf("expected one remote, got %+v", remotes)
+	}
+	if remotes[0].URL != "git@codeup.aliyun.com:org-1/yx-cli.git" {
+		t.Fatalf("expected raw configured remote, got %q", remotes[0].URL)
+	}
+}
+
+func runGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, output)
 	}
 }
