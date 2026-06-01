@@ -5,7 +5,12 @@ import (
 	"fmt"
 
 	"github.com/AldenWangExis/yx-cli/internal/app"
+	"github.com/AldenWangExis/yx-cli/internal/auth"
+	"github.com/AldenWangExis/yx-cli/internal/config"
 	"github.com/AldenWangExis/yx-cli/internal/output"
+	"github.com/AldenWangExis/yx-cli/internal/safety"
+	"github.com/AldenWangExis/yx-cli/internal/yunxiao"
+	"github.com/AldenWangExis/yx-cli/internal/yunxiao/flow"
 	"github.com/spf13/cobra"
 )
 
@@ -115,5 +120,28 @@ func (o Options) pipelineUseCase() (PipelineUseCase, error) {
 	if o.PipelineUseCase != nil {
 		return o.PipelineUseCase, nil
 	}
-	return nil, fmt.Errorf("pipeline service is not configured")
+	cfg, err := config.NewStore(o.ConfigPath).Load()
+	if err != nil {
+		return nil, err
+	}
+	profileName := o.DefaultProfile
+	if profileName == "" {
+		profileName = cfg.Current
+	}
+	if profileName == "" {
+		profileName = "default"
+	}
+	profile, ok := cfg.Profiles[profileName]
+	if !ok {
+		return nil, fmt.Errorf("profile %q does not exist", profileName)
+	}
+	token, ok, err := auth.NewFileTokenStore(defaultTokenPath(o.ConfigPath)).Load(profileName)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, fmt.Errorf("profile %q is not logged in", profileName)
+	}
+	adapter := flow.NewAdapter(yunxiao.ClientConfig{BaseURL: profile.Domain, Token: token, OrganizationID: profile.Organization, Region: profile.Region})
+	return app.NewPipelineUseCase(adapter, safety.Environment{ConfirmWrites: profile.Safety.ConfirmWrites}), nil
 }
