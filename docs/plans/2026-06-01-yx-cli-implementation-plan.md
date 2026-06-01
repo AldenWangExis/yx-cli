@@ -31,8 +31,49 @@
 
 - 当前仓库处于绿地状态，可在 `main` 上继续推进；如后续接入远端协作，再按功能切分分支。
 - 每个里程碑至少一个提交。
-- 大任务必须拆成多个小提交，提交信息使用 `type: summary` 格式，例如 `test: add config command contracts`、`feat: implement profile config store`。
+- 大任务必须拆成多个小提交，提交信息使用带影响范围的 Conventional Commit 格式：`type(scope): summary`。
+- scope 必须标明主要影响范围，例如 `cli`、`config`、`auth`、`safety`、`repo`、`mr`、`workitem`、`pipeline`、`yunxiao`、`docs`。
+- 示例：`test(auth): add config command contracts`、`feat(config): implement profile config store`、`fix(yunxiao): redact token from api errors`。
 - 提交前必须确认 `git status --short` 中没有非预期文件。
+
+## 语义不变量
+
+以下不变量来自 implementation plan 的架构审查，必须作为实现护栏和测试来源。
+
+### 状态来源与覆盖规则
+
+- `--profile`、`--org`、`--domain` 只能影响当前 invocation，除非执行的是明确的 `config set` 或 `config use` 命令。
+- `~/.config/yx/config.yaml` 是 profile、safety、repo-to-project mapping 的持久来源。
+- token store 是 token 的唯一持久来源；主 YAML 配置不得保存 token。
+- repo-to-project mapping 只能来自显式配置，不能通过扫描组织或项目自动猜测。
+
+### 持久化与失败顺序
+
+- 配置写入必须采用 atomic write：读取旧配置、构造新配置、写入临时文件、设置权限、rename 替换。
+- 配置写入失败时，旧配置必须仍然完整可读。
+- token 写入失败时，`auth login` 不得报告成功。
+- token 删除失败时，`auth logout` 不得报告成功。
+- 配置文件和 file token store 的权限不得宽于 `0600` 或当前平台允许的等价安全权限。
+
+### 写操作与非幂等请求
+
+- `--dry-run` 下任何远端写 port 都不得被调用，包括 MR create/merge、workitem create/update、pipeline run。
+- 需要确认的写操作必须按“构造操作摘要 -> 展示/确认 -> 调用 mutation”的顺序执行。
+- MR create/merge、workitem create/update、pipeline run 等非幂等远端写请求不得自动重试。
+- 如果非幂等写请求出现网络超时或连接中断，CLI 必须报告结果状态未知，并提示用户查询远端状态。
+
+### 数据形状与 mutation 安全
+
+- 列表 projection 只能用于展示、筛选和选择 ID，不得被当作完整实体驱动 clone、update、merge 或 run。
+- 需要 clone URL、完整 update body 或运行参数时，必须使用显式用户输入或 detail/full shape。
+- partial shape 和 full shape 必须在类型名或包边界上区分，避免后续 reader 误用。
+- `pr` 与 `mr`、`issue` 与 `workitem` 必须复用同一 use case，不能形成两套行为。
+
+### Secret 与外部进程
+
+- token 不得出现在 stdout、stderr、日志、错误、verbose 输出、golden snapshot 或测试失败信息中。
+- `repo clone` 不得通过命令行 argv 拼接 PAT；认证应依赖 SSH、Git credential helper 或不含 secret 的 clone URL。
+- 外部 `git` 进程的 stderr/stdout 在写入 CLI 输出前必须经过 secret redaction。
 
 ## 全局验收标准
 
@@ -46,6 +87,9 @@
 - 错误输出进入 stderr，并返回非零退出码。
 - token 值不出现在任何输出、日志、错误或测试快照中。
 - README 覆盖 PAT 登录、profile 配置、代码库、合并请求、工作项和流水线基础命令。
+- 配置和 file token store 写入具备 atomic write 测试。
+- 非幂等远端写请求具备“不自动重试”测试。
+- partial list shape 不能驱动 mutation 的约束具备测试覆盖。
 
 ## M1：基础能力
 
@@ -113,6 +157,8 @@ TDD：
 - 保存配置时创建父目录。
 - 配置文件权限不宽于 `0600` 或平台允许的等价权限。
 - 未知 key 被拒绝。
+- 写入采用 atomic write；写入失败时旧配置仍完整可读。
+- invocation override 不会被持久化到配置文件。
 
 ### M1.4 config 命令
 
@@ -202,6 +248,8 @@ TDD：
 - `auth logout` 删除当前 profile token。
 - file fallback 权限为 `0600`。
 - 错误信息不包含 token 原文。
+- file token store 写入采用 atomic write。
+- keychain 与 file fallback 的读取优先级在测试中固定。
 
 ## M2：代码库命令
 
@@ -226,6 +274,8 @@ TDD：
 - repo use case 不依赖 HTTP。
 - clone use case 会先解析 clone URL，再调用 git runner。
 - clone 失败返回可读错误。
+- clone 不得使用 repository list projection 直接驱动，必须使用 detail/full shape 或显式 clone URL。
+- git runner 的 argv 和输出不得包含 PAT。
 
 ### M2.2 repo CLI contract
 
@@ -289,6 +339,8 @@ TDD：
 - dry-run 不调用 service 写方法。
 - merge 在需要确认但未确认时失败。
 - create 参数校验在调用 service 前完成。
+- create/merge 属于非幂等远端写操作，不自动重试。
+- 网络超时或连接中断时返回状态未知语义。
 
 ### M3.2 mr/pr CLI contract
 
@@ -354,6 +406,8 @@ TDD：
 - `issue list --repo foo` 缺少 mapping 时不发 API 请求。
 - `workitem list --project p1` 不依赖 repo mapping。
 - write use case 支持 dry-run 和确认策略。
+- workitem update 不得由列表 projection 补齐完整更新实体。
+- create/update 属于非幂等远端写操作，不自动重试。
 
 ### M4.2 workitem/issue CLI contract
 
@@ -419,6 +473,8 @@ TDD：
 - dry-run 不触发真实 pipeline run。
 - logs 能输出多行日志。
 - follow 行为由接口抽象，测试不等待真实时间。
+- pipeline run 属于非幂等远端写操作，不自动重试。
+- pipeline run 网络超时或连接中断时返回状态未知语义。
 
 ### M5.2 pipeline CLI contract
 
@@ -541,6 +597,9 @@ TDD：
 - 是否需要运行 `go test ./...`。
 - 是否更新了文档或示例。
 - 是否确认没有 token、私有组织信息或临时路径进入快照。
+- 是否确认 partial shape 没有驱动 mutation。
+- 是否确认非幂等写请求没有自动 retry。
+- 是否确认持久化写入失败时旧状态仍可恢复。
 - 是否检查了 `git status --short`。
 
 ## 需要及时沟通的语义不收敛点
