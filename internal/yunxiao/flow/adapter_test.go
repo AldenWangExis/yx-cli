@@ -31,7 +31,7 @@ func TestAdapterListViewRunLogs(t *testing.T) {
 			_, _ = w.Write([]byte(`{"id":123,"name":"Build"}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/runs":
 			runCalls++
-			_, _ = w.Write([]byte(`{"id":"run1","pipelineId":"pipe1","status":"running"}`))
+			_, _ = w.Write([]byte(`789`))
 		case r.Method == http.MethodGet && r.URL.Path == "/oapi/v1/flow/organizations/org-1/pipelineRuns/run1/logs":
 			_, _ = w.Write([]byte(`{"lines":["line 1","line 2"]}`))
 		default:
@@ -60,7 +60,7 @@ func TestAdapterListViewRunLogs(t *testing.T) {
 		t.Fatalf("unexpected create body: %s", createBody)
 	}
 	run, err := adapter.RunPipeline(context.Background(), app.PipelineRunInput{PipelineID: "pipe1", Branch: "main"})
-	if err != nil || run.ID != "run1" {
+	if err != nil || run.ID != "789" || run.PipelineID != "pipe1" {
 		t.Fatalf("unexpected run=%+v err=%v", run, err)
 	}
 	if runCalls != 1 {

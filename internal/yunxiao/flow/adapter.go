@@ -77,6 +77,10 @@ func (a *Adapter) RunPipeline(ctx context.Context, input app.PipelineRunInput) (
 	if err != nil {
 		return app.PipelineRun{}, err
 	}
+	var id flexibleString
+	if err := json.Unmarshal(data, &id); err == nil && id != "" {
+		return app.PipelineRun{ID: string(id), PipelineID: input.PipelineID, Status: "running"}, nil
+	}
 	var run app.PipelineRun
 	if err := json.Unmarshal(data, &run); err != nil {
 		return app.PipelineRun{}, fmt.Errorf("decode pipeline run: %w", err)
