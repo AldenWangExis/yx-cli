@@ -32,6 +32,18 @@ func TestProjectAndWorkitemCommands(t *testing.T) {
 		t.Fatalf("unexpected projects: %+v", projects)
 	}
 
+	stdout, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts), "--json", "project", "create", "--name", "测试", "--yes")
+	if err != nil {
+		t.Fatalf("expected project create to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	var created app.ProjectMutationResult
+	if err := json.Unmarshal([]byte(stdout), &created); err != nil {
+		t.Fatalf("expected project create JSON, got error: %v output=%s", err, stdout)
+	}
+	if workitems.projectCreateInput.Name != "测试" || workitems.projectCreateInput.Scope != "public" || !workitems.projectCreateInput.Yes {
+		t.Fatalf("unexpected project create input: %+v", workitems.projectCreateInput)
+	}
+
 	stdout, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts), "--json", "workitem", "list", "--project", "p1")
 	if err != nil {
 		t.Fatalf("expected workitem list to succeed, got error: %v stderr=%s", err, stderr)
@@ -104,18 +116,28 @@ func TestIssueRepoMappingErrorIsStable(t *testing.T) {
 }
 
 type fakeWorkitemUseCase struct {
-	projects    []app.Project
-	list        []app.WorkitemListItem
-	detail      app.WorkitemDetail
-	created     app.WorkitemMutationResult
-	updated     app.WorkitemMutationResult
-	listInput   app.WorkitemListInput
-	createInput app.CreateWorkitemInput
-	updateInput app.UpdateWorkitemInput
+	projects           []app.Project
+	list               []app.WorkitemListItem
+	detail             app.WorkitemDetail
+	created            app.WorkitemMutationResult
+	projectCreated     app.ProjectMutationResult
+	updated            app.WorkitemMutationResult
+	listInput          app.WorkitemListInput
+	projectCreateInput app.CreateProjectInput
+	createInput        app.CreateWorkitemInput
+	updateInput        app.UpdateWorkitemInput
 }
 
 func (u *fakeWorkitemUseCase) ListProjects(ctx context.Context) ([]app.Project, error) {
 	return u.projects, nil
+}
+
+func (u *fakeWorkitemUseCase) CreateProject(ctx context.Context, input app.CreateProjectInput) (app.ProjectMutationResult, error) {
+	u.projectCreateInput = input
+	if u.projectCreated.Project.ID == "" {
+		return app.ProjectMutationResult{Project: app.Project{ID: "p2", Name: input.Name}}, nil
+	}
+	return u.projectCreated, nil
 }
 
 func (u *fakeWorkitemUseCase) ListWorkitems(ctx context.Context, input app.WorkitemListInput) ([]app.WorkitemListItem, error) {
@@ -141,6 +163,10 @@ type failingMappingWorkitemUseCase struct{}
 
 func (u *failingMappingWorkitemUseCase) ListProjects(ctx context.Context) ([]app.Project, error) {
 	return nil, nil
+}
+
+func (u *failingMappingWorkitemUseCase) CreateProject(ctx context.Context, input app.CreateProjectInput) (app.ProjectMutationResult, error) {
+	return app.ProjectMutationResult{}, nil
 }
 
 func (u *failingMappingWorkitemUseCase) ListWorkitems(ctx context.Context, input app.WorkitemListInput) ([]app.WorkitemListItem, error) {

@@ -3,11 +3,19 @@ package app
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/AldenWangExis/yx-cli/internal/safety"
 )
 
 type Project struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	CustomCode string `json:"customCode,omitempty"`
+	Scope      string `json:"scope,omitempty"`
+}
+
+type ProjectTemplate struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
@@ -34,6 +42,16 @@ type WorkitemListInput struct {
 	Repo      string
 }
 
+type CreateProjectInput struct {
+	Name        string
+	CustomCode  string
+	Scope       string
+	TemplateID  string
+	Description string
+	DryRun      bool
+	Yes         bool
+}
+
 type CreateWorkitemInput struct {
 	ProjectID string
 	Type      string
@@ -56,8 +74,16 @@ type WorkitemMutationResult struct {
 	Workitem WorkitemDetail `json:"workitem,omitempty"`
 }
 
+type ProjectMutationResult struct {
+	DryRun  bool    `json:"dryRun"`
+	Summary string  `json:"summary,omitempty"`
+	Project Project `json:"project,omitempty"`
+}
+
 type ProjectService interface {
 	ListProjects(ctx context.Context) ([]Project, error)
+	ListProjectTemplates(ctx context.Context) ([]ProjectTemplate, error)
+	CreateProject(ctx context.Context, input CreateProjectInput) (Project, error)
 }
 
 type WorkitemService interface {
@@ -96,6 +122,51 @@ func NewWorkitemUseCase(projects ProjectService, workitems WorkitemService, repo
 
 func (u *WorkitemUseCase) ListProjects(ctx context.Context) ([]Project, error) {
 	return u.projects.ListProjects(ctx)
+}
+
+func (u *WorkitemUseCase) CreateProject(ctx context.Context, input CreateProjectInput) (ProjectMutationResult, error) {
+	if input.Name == "" {
+		return ProjectMutationResult{}, fmt.Errorf("name is required")
+	}
+	if input.Scope == "" {
+		input.Scope = "public"
+	}
+	if input.CustomCode == "" {
+		input.CustomCode = generateProjectCustomCode(time.Now())
+	}
+	if input.TemplateID == "" {
+		templates, err := u.projects.ListProjectTemplates(ctx)
+		if err != nil {
+			return ProjectMutationResult{}, err
+		}
+		if len(templates) == 0 {
+			return ProjectMutationResult{}, fmt.Errorf("no project templates available")
+		}
+		input.TemplateID = templates[0].ID
+	}
+
+	summary := fmt.Sprintf("create project %q with template %s", input.Name, input.TemplateID)
+	decision, err := safety.Decide(safety.Request{Summary: summary, DryRun: input.DryRun, Yes: input.Yes}, u.safety)
+	if err != nil {
+		return ProjectMutationResult{}, err
+	}
+	if decision.DryRun {
+		return ProjectMutationResult{DryRun: true, Summary: summary}, nil
+	}
+	project, err := u.projects.CreateProject(ctx, input)
+	if err != nil {
+		return ProjectMutationResult{}, err
+	}
+	if project.Name == "" {
+		project.Name = input.Name
+	}
+	if project.CustomCode == "" {
+		project.CustomCode = input.CustomCode
+	}
+	if project.Scope == "" {
+		project.Scope = input.Scope
+	}
+	return ProjectMutationResult{Project: project}, nil
 }
 
 func (u *WorkitemUseCase) ListWorkitems(ctx context.Context, input WorkitemListInput) ([]WorkitemListItem, error) {
@@ -137,6 +208,16 @@ func (u *WorkitemUseCase) CreateWorkitem(ctx context.Context, input CreateWorkit
 		return WorkitemMutationResult{}, err
 	}
 	return WorkitemMutationResult{Workitem: detail}, nil
+}
+
+func generateProjectCustomCode(now time.Time) string {
+	n := now.UnixNano()
+	code := make([]byte, 5)
+	for i := range code {
+		code[i] = byte('A' + n%26)
+		n /= 26
+	}
+	return string(code)
 }
 
 func (u *WorkitemUseCase) UpdateWorkitem(ctx context.Context, input UpdateWorkitemInput) (WorkitemMutationResult, error) {

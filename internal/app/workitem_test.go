@@ -68,6 +68,53 @@ func TestWorkitemUseCaseMissingRepoMappingDoesNotCallService(t *testing.T) {
 	}
 }
 
+func TestProjectCreateUsesDefaultTemplateAndGeneratedCode(t *testing.T) {
+	projects := &fakeProjectService{
+		templates: []ProjectTemplate{{ID: "tpl-1", Name: "Classic"}},
+		created:   Project{ID: "p2"},
+	}
+	useCase := NewWorkitemUseCase(projects, &fakeWorkitemService{}, nil, safety.Environment{})
+
+	result, err := useCase.CreateProject(context.Background(), CreateProjectInput{Name: "测试"})
+	if err != nil {
+		t.Fatalf("expected project create to succeed, got: %v", err)
+	}
+	if result.DryRun {
+		t.Fatalf("expected real create, got dry-run: %+v", result)
+	}
+	if result.Project.ID != "p2" {
+		t.Fatalf("unexpected project: %+v", result.Project)
+	}
+	if result.Project.Name != "测试" {
+		t.Fatalf("expected name to be filled from input, got %+v", result.Project)
+	}
+	if projects.createInput.TemplateID != "tpl-1" {
+		t.Fatalf("expected default template, got %+v", projects.createInput)
+	}
+	if projects.createInput.Scope != "public" {
+		t.Fatalf("expected default public scope, got %+v", projects.createInput)
+	}
+	if len(projects.createInput.CustomCode) < 4 || len(projects.createInput.CustomCode) > 6 {
+		t.Fatalf("expected generated custom code, got %+v", projects.createInput)
+	}
+}
+
+func TestProjectCreateDryRunDoesNotMutate(t *testing.T) {
+	projects := &fakeProjectService{templates: []ProjectTemplate{{ID: "tpl-1", Name: "Classic"}}}
+	useCase := NewWorkitemUseCase(projects, &fakeWorkitemService{}, nil, safety.Environment{ConfirmWrites: true})
+
+	result, err := useCase.CreateProject(context.Background(), CreateProjectInput{Name: "测试", DryRun: true})
+	if err != nil {
+		t.Fatalf("expected dry-run to succeed, got: %v", err)
+	}
+	if !result.DryRun {
+		t.Fatalf("expected dry-run result, got %+v", result)
+	}
+	if projects.createCalled {
+		t.Fatal("expected no mutation during dry-run")
+	}
+}
+
 func TestWorkitemCreateAndUpdateDryRunDoNotMutate(t *testing.T) {
 	workitems := &fakeWorkitemService{}
 	useCase := NewWorkitemUseCase(&fakeProjectService{}, workitems, nil, safety.Environment{ConfirmWrites: true})
@@ -99,11 +146,28 @@ func TestWorkitemCreateAndUpdateDryRunDoNotMutate(t *testing.T) {
 }
 
 type fakeProjectService struct {
-	projects []Project
+	projects     []Project
+	templates    []ProjectTemplate
+	created      Project
+	createInput  CreateProjectInput
+	createCalled bool
 }
 
 func (s *fakeProjectService) ListProjects(ctx context.Context) ([]Project, error) {
 	return s.projects, nil
+}
+
+func (s *fakeProjectService) ListProjectTemplates(ctx context.Context) ([]ProjectTemplate, error) {
+	return s.templates, nil
+}
+
+func (s *fakeProjectService) CreateProject(ctx context.Context, input CreateProjectInput) (Project, error) {
+	s.createCalled = true
+	s.createInput = input
+	if s.created.ID == "" {
+		return Project{ID: "p1", Name: input.Name, CustomCode: input.CustomCode}, nil
+	}
+	return s.created, nil
 }
 
 type fakeWorkitemService struct {

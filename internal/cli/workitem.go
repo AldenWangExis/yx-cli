@@ -16,6 +16,7 @@ import (
 
 type WorkitemUseCase interface {
 	ListProjects(ctx context.Context) ([]app.Project, error)
+	CreateProject(ctx context.Context, input app.CreateProjectInput) (app.ProjectMutationResult, error)
 	ListWorkitems(ctx context.Context, input app.WorkitemListInput) ([]app.WorkitemListItem, error)
 	GetWorkitem(ctx context.Context, id string) (app.WorkitemDetail, error)
 	CreateWorkitem(ctx context.Context, input app.CreateWorkitemInput) (app.WorkitemMutationResult, error)
@@ -47,6 +48,34 @@ func newProjectCommand(opts Options) *cobra.Command {
 			return renderer.WriteTable([]string{"ID", "NAME"}, rows)
 		},
 	})
+	cmd.AddCommand(newProjectCreateCommand(opts))
+	return cmd
+}
+
+func newProjectCreateCommand(opts Options) *cobra.Command {
+	input := app.CreateProjectInput{Scope: "public"}
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create a project",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			useCase, err := opts.workitemUseCase()
+			if err != nil {
+				return err
+			}
+			result, err := useCase.CreateProject(cmd.Context(), input)
+			if err != nil {
+				return err
+			}
+			return renderProjectMutation(cmd, result)
+		},
+	}
+	cmd.Flags().StringVar(&input.Name, "name", "", "project name")
+	cmd.Flags().StringVar(&input.CustomCode, "custom-code", "", "project custom code")
+	cmd.Flags().StringVar(&input.Scope, "scope", "public", "project scope")
+	cmd.Flags().StringVar(&input.TemplateID, "template-id", "", "project template id")
+	cmd.Flags().StringVar(&input.Description, "description", "", "project description")
+	cmd.Flags().BoolVar(&input.DryRun, "dry-run", false, "show intended operation without writing")
+	cmd.Flags().BoolVar(&input.Yes, "yes", false, "skip confirmation")
 	return cmd
 }
 
@@ -164,6 +193,19 @@ func newWorkitemUpdateCommand(opts Options) *cobra.Command {
 	cmd.Flags().BoolVar(&input.DryRun, "dry-run", false, "show intended operation without writing")
 	cmd.Flags().BoolVar(&input.Yes, "yes", false, "skip confirmation")
 	return cmd
+}
+
+func renderProjectMutation(cmd *cobra.Command, result app.ProjectMutationResult) error {
+	renderer := output.NewRenderer(cmd.OutOrStdout())
+	if ContextFromCommand(cmd).JSON {
+		return renderer.WriteJSON(result)
+	}
+	if result.DryRun {
+		fmt.Fprintf(cmd.OutOrStdout(), "dry-run: %s\n", result.Summary)
+		return nil
+	}
+	project := result.Project
+	return renderer.WriteTable([]string{"ID", "NAME", "CUSTOM_CODE"}, [][]string{{project.ID, project.Name, project.CustomCode}})
 }
 
 func renderWorkitemMutation(cmd *cobra.Command, result app.WorkitemMutationResult) error {

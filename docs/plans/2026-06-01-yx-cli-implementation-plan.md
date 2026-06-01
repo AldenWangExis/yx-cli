@@ -392,12 +392,14 @@ TDD：
 - 定义 project service port。
 - 定义 workitem service port。
 - 实现 project list。
+- 实现 project create，支持自动选择默认 project template、自动生成 `customCode`、dry-run 与确认策略。
 - 实现 workitem list/view/create/update。
 - 实现 repo-to-project mapping 解析。
 
 TDD：
 
 - Red：写 use case 测试，覆盖 project-first、repo mapping、mapping 缺失不调用 service。
+- Red：补 project create 用例，覆盖默认模板选择、`customCode` 生成、dry-run 不写远端。
 - Green：实现 use case。
 - Refactor：抽出 mapping resolver。
 
@@ -406,6 +408,7 @@ TDD：
 - `issue list --repo foo` 缺少 mapping 时不发 API 请求。
 - `workitem list --project p1` 不依赖 repo mapping。
 - write use case 支持 dry-run 和确认策略。
+- `project create --name` 可在不显式传 `--template-id` 时读取默认模板创建项目。
 - workitem update 不得由列表 projection 补齐完整更新实体。
 - create/update 属于非幂等远端写操作，不自动重试。
 
@@ -414,12 +417,14 @@ TDD：
 范围：
 
 - 实现 `yx project list`。
+- 实现 `yx project create --name <name> [--custom-code <code>] [--template-id <id>] [--description <text>]`。
 - 实现 `yx workitem list/view/create/update`。
 - 实现 `yx issue` alias。
 
 TDD：
 
 - Red：写 CLI contract test，覆盖 alias、缺参、JSON、dry-run。
+- Red：补 `project create` CLI contract test，覆盖 JSON 输出、`--yes`、默认 `scope=public`。
 - Green：实现命令。
 - Refactor：复用 workitem command builder。
 
@@ -427,6 +432,7 @@ TDD：
 
 - `issue` 与 `workitem` 输出模型一致。
 - `issue --repo` 缺少 mapping 时错误文案符合设计文档。
+- `project create` 在接口只返回 ID 时，CLI 输出用请求值回填 name/customCode/scope。
 - create/update 支持 `--dry-run`。
 
 ### M4.3 Projex adapter
@@ -434,6 +440,7 @@ TDD：
 范围：
 
 - 实现 project adapter。
+- 实现 project template list 与 project create adapter。
 - 实现 workitem adapter。
 - 覆盖 search/list/get/create/update。
 

@@ -12,6 +12,7 @@ import (
 )
 
 func TestAdapterProjectsAndWorkitems(t *testing.T) {
+	var projectCreateBody string
 	var createBody string
 	var updateBody string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -22,6 +23,13 @@ func TestAdapterProjectsAndWorkitems(t *testing.T) {
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == "/oapi/v1/projex/organizations/org-1/projects:search":
 			_, _ = w.Write([]byte(`[{"id":"p1","name":"Project One"}]`))
+		case r.Method == http.MethodGet && r.URL.Path == "/oapi/v1/projex/organizations/org-1/projectTemplates":
+			_, _ = w.Write([]byte(`[{"id":"tpl-1","name":"Classic"}]`))
+		case r.Method == http.MethodPost && r.URL.Path == "/oapi/v1/projex/organizations/org-1/projects":
+			body := make([]byte, r.ContentLength)
+			_, _ = r.Body.Read(body)
+			projectCreateBody = string(body)
+			_, _ = w.Write([]byte(`{"id":"p2","name":"Project Two","customCode":"ABCD"}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/oapi/v1/projex/organizations/org-1/workitems:search":
 			body := make([]byte, r.ContentLength)
 			_, _ = r.Body.Read(body)
@@ -61,6 +69,31 @@ func TestAdapterProjectsAndWorkitems(t *testing.T) {
 	}
 	if len(projects) != 1 || projects[0].ID != "p1" {
 		t.Fatalf("unexpected projects: %+v", projects)
+	}
+
+	templates, err := adapter.ListProjectTemplates(context.Background())
+	if err != nil {
+		t.Fatalf("expected project templates, got: %v", err)
+	}
+	if len(templates) != 1 || templates[0].ID != "tpl-1" {
+		t.Fatalf("unexpected templates: %+v", templates)
+	}
+
+	project, err := adapter.CreateProject(context.Background(), app.CreateProjectInput{
+		Name:        "Project Two",
+		CustomCode:  "ABCD",
+		Scope:       "public",
+		TemplateID:  "tpl-1",
+		Description: "test",
+	})
+	if err != nil {
+		t.Fatalf("expected project create, got: %v", err)
+	}
+	if project.ID != "p2" {
+		t.Fatalf("unexpected created project: %+v", project)
+	}
+	if !strings.Contains(projectCreateBody, `"customCode":"ABCD"`) || !strings.Contains(projectCreateBody, `"templateId":"tpl-1"`) {
+		t.Fatalf("unexpected project create body: %s", projectCreateBody)
 	}
 
 	items, err := adapter.ListWorkitems(context.Background(), "p1")
