@@ -26,6 +26,8 @@ func NewRootCommandWithOptions(opts Options) *cobra.Command {
 	cmd.AddCommand(newConfigCommand(opts))
 	cmd.AddCommand(newAuthCommand(opts))
 	cmd.AddCommand(newRepoCommand(opts))
+	cmd.AddCommand(newMergeRequestCommand(opts, "mr"))
+	cmd.AddCommand(newMergeRequestCommand(opts, "pr"))
 
 	return cmd
 }

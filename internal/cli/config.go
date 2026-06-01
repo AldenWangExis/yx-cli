@@ -13,10 +13,11 @@ import (
 )
 
 type Options struct {
-	ConfigPath     string
-	AuthProvider   auth.Provider
-	DefaultProfile string
-	RepoUseCase    RepositoryUseCase
+	ConfigPath          string
+	AuthProvider        auth.Provider
+	DefaultProfile      string
+	RepoUseCase         RepositoryUseCase
+	MergeRequestUseCase MergeRequestUseCase
 }
 
 func defaultOptions() Options {
