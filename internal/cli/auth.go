@@ -104,7 +104,7 @@ func renderAuthStatus(w io.Writer, currentProfile string, profileConfig config.P
 		}
 		sort.Strings(keys)
 		for _, key := range keys {
-			fmt.Fprintf(w, "    %s: %s\n", key, profileConfig.ServiceConnections[key])
+			fmt.Fprintf(w, "    %s: %s\n", key, maskStatusSecret(profileConfig.ServiceConnections[key]))
 		}
 	}
 	return nil
@@ -129,6 +129,21 @@ func firstStatusValue(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func maskStatusSecret(value string) string {
+	if value == "" {
+		return ""
+	}
+	if len(value) <= 8 {
+		return strings.Repeat("*", len(value))
+	}
+	const prefixLen = 3
+	const suffixLen = 4
+	if len(value) <= prefixLen+suffixLen {
+		return strings.Repeat("*", len(value))
+	}
+	return value[:prefixLen] + strings.Repeat("*", len(value)-prefixLen-suffixLen) + value[len(value)-suffixLen:]
 }
 
 func newAuthLoginCommand(opts Options) *cobra.Command {

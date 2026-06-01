@@ -51,12 +51,15 @@ func TestAuthStatusLoginLogoutUseProvider(t *testing.T) {
 		"- Region: center",
 		"- Token: pt-********c75c",
 		"- Service connections:",
-		"codeup: sc-codeup-1",
-		"flow: sc-flow-1",
+		"codeup: sc-****up-1",
+		"flow: sc-**ow-1",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("expected status output to include %q, got:\n%s", want, stdout)
 		}
+	}
+	if strings.Contains(stdout, "sc-codeup-1") || strings.Contains(stdout, "sc-flow-1") {
+		t.Fatal("auth status leaked service connection id")
 	}
 	if strings.Contains(stdout, "secret-token") {
 		t.Fatal("auth status leaked token")
