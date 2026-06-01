@@ -7,24 +7,56 @@ import (
 	"testing"
 
 	"github.com/AldenWangExis/yx-cli/internal/auth"
+	"github.com/AldenWangExis/yx-cli/internal/config"
 )
 
 func TestAuthStatusLoginLogoutUseProvider(t *testing.T) {
 	provider := &fakeAuthProvider{
-		status: auth.Status{Profile: "default", HasToken: true, Backend: "fake"},
+		status: auth.Status{Profile: "default", HasToken: true, Backend: "fake", TokenMask: "pt-********c75c"},
 	}
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := config.NewStore(configPath).Save(config.Config{
+		Current: "default",
+		Profiles: map[string]config.Profile{
+			"default": {
+				Domain:       "https://devops.aliyun.com",
+				Organization: "org-1",
+				Region:       "center",
+				ServiceConnections: map[string]string{
+					"codeup": "sc-codeup-1",
+					"flow":   "sc-flow-1",
+				},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
 
 	stdout, stderr, err := executeCommand(t, NewRootCommandWithOptions(Options{
-		ConfigPath:     configPath,
-		AuthProvider:   provider,
-		DefaultProfile: "default",
+		ConfigPath:          configPath,
+		AuthProvider:        provider,
+		AuthAccountResolver: fakeAuthAccountResolver{user: AuthAccount{Name: "王子豪", AccountID: "account-1"}},
+		DefaultProfile:      "default",
 	}), "auth", "status")
 	if err != nil {
 		t.Fatalf("expected auth status to succeed, got error: %v stderr=%s", err, stderr)
 	}
-	if !strings.Contains(stdout, "default") || !strings.Contains(stdout, "fake") {
-		t.Fatalf("expected status output to include profile and backend, got:\n%s", stdout)
+	for _, want := range []string{
+		"devops.aliyun.com",
+		"✓ Logged in to devops.aliyun.com account 王子豪 (fake)",
+		"- Active profile: true",
+		"- Account status: authenticated",
+		"- Account ID: account-1",
+		"- Organization: org-1",
+		"- Region: center",
+		"- Token: pt-********c75c",
+		"- Service connections:",
+		"codeup: sc-codeup-1",
+		"flow: sc-flow-1",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("expected status output to include %q, got:\n%s", want, stdout)
+		}
 	}
 	if strings.Contains(stdout, "secret-token") {
 		t.Fatal("auth status leaked token")
@@ -82,4 +114,13 @@ func (p *fakeAuthProvider) Status(ctx context.Context, profile string) (auth.Sta
 func (p *fakeAuthProvider) Logout(ctx context.Context, profile string) error {
 	p.loggedOut = true
 	return nil
+}
+
+type fakeAuthAccountResolver struct {
+	user AuthAccount
+	err  error
+}
+
+func (r fakeAuthAccountResolver) ResolveAuthAccount(ctx context.Context, profileName string, profile config.Profile) (AuthAccount, error) {
+	return r.user, r.err
 }

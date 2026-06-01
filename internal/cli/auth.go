@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"path/filepath"
+	"sort"
 	"strings"
 
+	"github.com/AldenWangExis/yx-cli/internal/auth"
 	"github.com/AldenWangExis/yx-cli/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -33,18 +36,99 @@ func newAuthStatusCommand(opts Options) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			cfg, err := config.NewStore(opts.ConfigPath).Load()
+			if err != nil {
+				return err
+			}
+			profileConfig := cfg.Profiles[profile]
 			status, err := opts.authProvider().Status(cmd.Context(), profile)
 			if err != nil {
 				return err
 			}
-			tokenState := "missing"
-			if status.HasToken {
-				tokenState = "present"
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "profile: %s\nbackend: %s\ntoken: %s\n", status.Profile, status.Backend, tokenState)
-			return nil
+			account, accountErr := opts.authAccountResolver().ResolveAuthAccount(cmd.Context(), profile, profileConfig)
+			return renderAuthStatus(cmd.OutOrStdout(), cfg.Current, profileConfig, status, account, accountErr)
 		},
 	}
+}
+
+func renderAuthStatus(w io.Writer, currentProfile string, profileConfig config.Profile, status auth.Status, account AuthAccount, accountErr error) error {
+	host := displayHost(profileConfig.Domain)
+	if host == "" {
+		host = "yunxiao"
+	}
+
+	fmt.Fprintln(w, host)
+	if status.HasToken {
+		accountName := firstStatusValue(account.Name, account.Username, "unknown")
+		fmt.Fprintf(w, "  ✓ Logged in to %s account %s (%s)\n", host, accountName, status.Backend)
+	} else {
+		fmt.Fprintf(w, "  x Not logged in to %s profile %s (%s)\n", host, status.Profile, status.Backend)
+	}
+
+	active := currentProfile == "" || currentProfile == status.Profile
+	fmt.Fprintf(w, "  - Active profile: %t\n", active)
+	accountStatus := "not authenticated"
+	if status.HasToken && accountErr == nil {
+		accountStatus = "authenticated"
+	} else if status.HasToken {
+		accountStatus = "token present, account lookup unavailable"
+	}
+	fmt.Fprintf(w, "  - Account status: %s\n", accountStatus)
+	if account.AccountID != "" {
+		fmt.Fprintf(w, "  - Account ID: %s\n", account.AccountID)
+	}
+	if account.Username != "" && account.Username != account.Name {
+		fmt.Fprintf(w, "  - Username: %s\n", account.Username)
+	}
+	if accountErr != nil {
+		fmt.Fprintf(w, "  - Account lookup: unavailable (%v)\n", accountErr)
+	}
+	if profileConfig.Organization != "" {
+		fmt.Fprintf(w, "  - Organization: %s\n", profileConfig.Organization)
+	}
+	if profileConfig.Region != "" {
+		fmt.Fprintf(w, "  - Region: %s\n", profileConfig.Region)
+	}
+	token := "missing"
+	if status.TokenMask != "" {
+		token = status.TokenMask
+	} else if status.HasToken {
+		token = "present"
+	}
+	fmt.Fprintf(w, "  - Token: %s\n", token)
+	if len(profileConfig.ServiceConnections) > 0 {
+		fmt.Fprintln(w, "  - Service connections:")
+		keys := make([]string, 0, len(profileConfig.ServiceConnections))
+		for key := range profileConfig.ServiceConnections {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			fmt.Fprintf(w, "    %s: %s\n", key, profileConfig.ServiceConnections[key])
+		}
+	}
+	return nil
+}
+
+func displayHost(domain string) string {
+	value := strings.TrimSpace(domain)
+	if value == "" {
+		return ""
+	}
+	parsed, err := url.Parse(value)
+	if err == nil && parsed.Host != "" {
+		return parsed.Host
+	}
+	return strings.TrimRight(strings.TrimPrefix(strings.TrimPrefix(value, "https://"), "http://"), "/")
+}
+
+func firstStatusValue(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func newAuthLoginCommand(opts Options) *cobra.Command {

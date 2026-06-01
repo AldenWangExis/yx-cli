@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,8 @@ import (
 	"github.com/AldenWangExis/yx-cli/internal/auth"
 	"github.com/AldenWangExis/yx-cli/internal/config"
 	"github.com/AldenWangExis/yx-cli/internal/output"
+	"github.com/AldenWangExis/yx-cli/internal/yunxiao"
+	"github.com/AldenWangExis/yx-cli/internal/yunxiao/platform"
 	"github.com/spf13/cobra"
 )
 
@@ -20,6 +23,18 @@ type Options struct {
 	MergeRequestUseCase MergeRequestUseCase
 	WorkitemUseCase     WorkitemUseCase
 	PipelineUseCase     PipelineUseCase
+	AuthAccountResolver AuthAccountResolver
+}
+
+type AuthAccount struct {
+	Name      string
+	Username  string
+	AccountID string
+	Email     string
+}
+
+type AuthAccountResolver interface {
+	ResolveAuthAccount(ctx context.Context, profileName string, profile config.Profile) (AuthAccount, error)
 }
 
 func defaultOptions() Options {
@@ -35,6 +50,34 @@ func (o Options) authProvider() auth.Provider {
 		return o.AuthProvider
 	}
 	return auth.NewPATProvider(auth.NewFileTokenStore(defaultTokenPath(o.ConfigPath)))
+}
+
+func (o Options) authAccountResolver() AuthAccountResolver {
+	if o.AuthAccountResolver != nil {
+		return o.AuthAccountResolver
+	}
+	return fileAuthAccountResolver{configPath: o.ConfigPath}
+}
+
+type fileAuthAccountResolver struct {
+	configPath string
+}
+
+func (r fileAuthAccountResolver) ResolveAuthAccount(ctx context.Context, profileName string, profile config.Profile) (AuthAccount, error) {
+	token, ok, err := auth.NewFileTokenStore(defaultTokenPath(r.configPath)).Load(profileName)
+	if err != nil || !ok || token == "" || profile.Domain == "" {
+		return AuthAccount{}, err
+	}
+	user, err := platform.NewAdapter(yunxiao.ClientConfig{
+		BaseURL:        profile.Domain,
+		Token:          token,
+		OrganizationID: profile.Organization,
+		Region:         profile.Region,
+	}).CurrentUser(ctx)
+	if err != nil {
+		return AuthAccount{}, err
+	}
+	return AuthAccount{Name: user.Name, Username: user.Username, AccountID: user.AccountID, Email: user.Email}, nil
 }
 
 func newConfigCommand(opts Options) *cobra.Command {
