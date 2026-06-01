@@ -15,6 +15,7 @@ The installer writes `yx` to `~/.local/bin` by default, adds that directory to y
 Verify:
 
 ```bash
+yx --version
 yx --help
 yx auth status
 ```

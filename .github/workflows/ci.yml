@@ -61,9 +61,14 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          VERSION: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
         run: |
           mkdir -p dist
-          go build -trimpath -o "dist/${{ matrix.output }}" ./cmd/yx
+          DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          go build -trimpath \
+            -ldflags "-X github.com/AldenWangExis/yx-cli/internal/cli.Version=${VERSION} -X github.com/AldenWangExis/yx-cli/internal/cli.Commit=${COMMIT} -X github.com/AldenWangExis/yx-cli/internal/cli.Date=${DATE}" \
+            -o "dist/${{ matrix.output }}" ./cmd/yx
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

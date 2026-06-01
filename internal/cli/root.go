@@ -1,6 +1,10 @@
 package cli
 
-import "github.com/spf13/cobra"
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+)
 
 func NewRootCommand() *cobra.Command {
 	return NewRootCommandWithOptions(defaultOptions())
@@ -12,8 +16,10 @@ func NewRootCommandWithOptions(opts Options) *cobra.Command {
 		Short:        "Yunxiao command line client",
 		Long:         "yx is a Yunxiao command line client.",
 		Example:      "  yx auth login\n  yx repo list\n  yx repo view <repo>\n  yx mr list --repo <repo>\n  yx pipeline list",
+		Version:      versionString(),
 		SilenceUsage: true,
 	}
+	cmd.SetVersionTemplate("{{.Version}}\n")
 	cmd.PersistentFlags().String("profile", "", "profile to use for this invocation")
 	cmd.PersistentFlags().String("org", "", "organization override for this invocation")
 	cmd.PersistentFlags().String("domain", "", "domain override for this invocation")
@@ -28,9 +34,20 @@ func NewRootCommandWithOptions(opts Options) *cobra.Command {
 	cmd.AddCommand(newWorkitemCommand(opts, "workitem"))
 	cmd.AddCommand(newWorkitemCommand(opts, "issue"))
 	cmd.AddCommand(newPipelineCommand(opts))
+	cmd.AddCommand(newVersionCommand())
 	applyHelpTemplate(cmd)
 
 	return cmd
+}
+
+func newVersionCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Show version information",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Fprintln(cmd.OutOrStdout(), versionString())
+		},
+	}
 }
 
 const helpTemplate = `{{with (or .Long .Short)}}{{.}}
