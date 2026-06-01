@@ -57,6 +57,56 @@ func TestPipelineRunDryRunDoesNotMutate(t *testing.T) {
 	}
 }
 
+func TestPipelineCreateDryRunDoesNotMutate(t *testing.T) {
+	service := &fakePipelineService{}
+	useCase := NewPipelineUseCase(service, safety.Environment{ConfirmWrites: true})
+
+	result, err := useCase.CreatePipeline(context.Background(), PipelineCreateInput{
+		Name:    "yx-cli-ci",
+		Content: "stages: []\n",
+		DryRun:  true,
+	})
+	if err != nil {
+		t.Fatalf("expected dry run to succeed, got: %v", err)
+	}
+	if !result.DryRun || service.createCalled {
+		t.Fatalf("expected dry-run without mutation, result=%+v called=%v", result, service.createCalled)
+	}
+}
+
+func TestPipelineCreateWithYesMutatesOnce(t *testing.T) {
+	service := &fakePipelineService{created: PipelineDetail{ID: "pipe2", Name: "yx-cli-ci", Status: "enabled"}}
+	useCase := NewPipelineUseCase(service, safety.Environment{ConfirmWrites: true, IsTerminal: false})
+
+	result, err := useCase.CreatePipeline(context.Background(), PipelineCreateInput{
+		Name:    "yx-cli-ci",
+		Content: "stages: []\n",
+		Yes:     true,
+	})
+	if err != nil {
+		t.Fatalf("expected create with yes to succeed, got: %v", err)
+	}
+	if result.Pipeline.ID != "pipe2" {
+		t.Fatalf("unexpected create result: %+v", result)
+	}
+	if service.createCalls != 1 || service.createInput.Content != "stages: []\n" {
+		t.Fatalf("unexpected create call: calls=%d input=%+v", service.createCalls, service.createInput)
+	}
+}
+
+func TestPipelineCreateRequiresNameAndContent(t *testing.T) {
+	service := &fakePipelineService{}
+	useCase := NewPipelineUseCase(service, safety.Environment{})
+
+	_, err := useCase.CreatePipeline(context.Background(), PipelineCreateInput{Name: "yx-cli-ci"})
+	if err == nil {
+		t.Fatal("expected create without content to fail")
+	}
+	if service.createCalled {
+		t.Fatal("expected create not to be called without content")
+	}
+}
+
 func TestPipelineRunRequiresConfirmation(t *testing.T) {
 	service := &fakePipelineService{}
 	useCase := NewPipelineUseCase(service, safety.Environment{ConfirmWrites: true, IsTerminal: false})
@@ -87,13 +137,17 @@ func TestPipelineRunWithYesMutatesOnce(t *testing.T) {
 }
 
 type fakePipelineService struct {
-	list      []PipelineListItem
-	detail    PipelineDetail
-	run       PipelineRun
-	logs      []string
-	follow    bool
-	runCalled bool
-	runCalls  int
+	list         []PipelineListItem
+	detail       PipelineDetail
+	created      PipelineDetail
+	run          PipelineRun
+	logs         []string
+	follow       bool
+	createInput  PipelineCreateInput
+	createCalled bool
+	createCalls  int
+	runCalled    bool
+	runCalls     int
 }
 
 func (s *fakePipelineService) ListPipelines(ctx context.Context) ([]PipelineListItem, error) {
@@ -102,6 +156,16 @@ func (s *fakePipelineService) ListPipelines(ctx context.Context) ([]PipelineList
 
 func (s *fakePipelineService) GetPipeline(ctx context.Context, id string) (PipelineDetail, error) {
 	return s.detail, nil
+}
+
+func (s *fakePipelineService) CreatePipeline(ctx context.Context, input PipelineCreateInput) (PipelineDetail, error) {
+	s.createCalled = true
+	s.createCalls++
+	s.createInput = input
+	if s.created.ID == "" {
+		return PipelineDetail{ID: "pipe2", Name: input.Name, Status: "enabled"}, nil
+	}
+	return s.created, nil
 }
 
 func (s *fakePipelineService) RunPipeline(ctx context.Context, input PipelineRunInput) (PipelineRun, error) {

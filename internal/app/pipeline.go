@@ -25,6 +25,13 @@ type PipelineRun struct {
 	Status     string `json:"status"`
 }
 
+type PipelineCreateInput struct {
+	Name    string
+	Content string
+	DryRun  bool
+	Yes     bool
+}
+
 type PipelineRunInput struct {
 	PipelineID string
 	Branch     string
@@ -43,9 +50,16 @@ type PipelineRunResult struct {
 	Run     PipelineRun `json:"run,omitempty"`
 }
 
+type PipelineMutationResult struct {
+	DryRun   bool           `json:"dryRun"`
+	Summary  string         `json:"summary,omitempty"`
+	Pipeline PipelineDetail `json:"pipeline,omitempty"`
+}
+
 type PipelineService interface {
 	ListPipelines(ctx context.Context) ([]PipelineListItem, error)
 	GetPipeline(ctx context.Context, id string) (PipelineDetail, error)
+	CreatePipeline(ctx context.Context, input PipelineCreateInput) (PipelineDetail, error)
 	RunPipeline(ctx context.Context, input PipelineRunInput) (PipelineRun, error)
 	GetPipelineLogs(ctx context.Context, input PipelineLogsInput) ([]string, error)
 }
@@ -68,6 +82,25 @@ func (u *PipelineUseCase) GetPipeline(ctx context.Context, id string) (PipelineD
 		return PipelineDetail{}, fmt.Errorf("pipeline id is required")
 	}
 	return u.service.GetPipeline(ctx, id)
+}
+
+func (u *PipelineUseCase) CreatePipeline(ctx context.Context, input PipelineCreateInput) (PipelineMutationResult, error) {
+	if input.Name == "" || input.Content == "" {
+		return PipelineMutationResult{}, fmt.Errorf("pipeline name and content are required")
+	}
+	summary := fmt.Sprintf("create pipeline %s", input.Name)
+	decision, err := safety.Decide(safety.Request{Summary: summary, DryRun: input.DryRun, Yes: input.Yes}, u.safety)
+	if err != nil {
+		return PipelineMutationResult{}, err
+	}
+	if decision.DryRun {
+		return PipelineMutationResult{DryRun: true, Summary: summary}, nil
+	}
+	pipeline, err := u.service.CreatePipeline(ctx, input)
+	if err != nil {
+		return PipelineMutationResult{}, err
+	}
+	return PipelineMutationResult{Pipeline: pipeline}, nil
 }
 
 func (u *PipelineUseCase) RunPipeline(ctx context.Context, input PipelineRunInput) (PipelineRunResult, error) {

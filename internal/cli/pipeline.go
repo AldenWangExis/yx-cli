@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/AldenWangExis/yx-cli/internal/app"
 	"github.com/AldenWangExis/yx-cli/internal/auth"
@@ -17,6 +18,7 @@ import (
 type PipelineUseCase interface {
 	ListPipelines(ctx context.Context) ([]app.PipelineListItem, error)
 	GetPipeline(ctx context.Context, id string) (app.PipelineDetail, error)
+	CreatePipeline(ctx context.Context, input app.PipelineCreateInput) (app.PipelineMutationResult, error)
 	RunPipeline(ctx context.Context, input app.PipelineRunInput) (app.PipelineRunResult, error)
 	GetPipelineLogs(ctx context.Context, input app.PipelineLogsInput) ([]string, error)
 }
@@ -28,7 +30,7 @@ func newPipelineCommand(opts Options) *cobra.Command {
 		Long:    "Manage Yunxiao Flow pipelines, runs, and logs.",
 		Example: "  yx pipeline list\n  yx pipeline view <pipeline-id>\n  yx pipeline run <pipeline-id> --branch master --dry-run\n  yx pipeline logs <run-id>",
 	}
-	cmd.AddCommand(newPipelineListCommand(opts), newPipelineViewCommand(opts), newPipelineRunCommand(opts), newPipelineLogsCommand(opts))
+	cmd.AddCommand(newPipelineListCommand(opts), newPipelineViewCommand(opts), newPipelineCreateCommand(opts), newPipelineRunCommand(opts), newPipelineLogsCommand(opts))
 	return cmd
 }
 
@@ -70,6 +72,43 @@ func newPipelineViewCommand(opts Options) *cobra.Command {
 		}
 		return r.WriteTable([]string{"ID", "NAME", "STATUS"}, [][]string{{item.ID, item.Name, item.Status}})
 	}}
+}
+
+func newPipelineCreateCommand(opts Options) *cobra.Command {
+	var input app.PipelineCreateInput
+	var filePath string
+	cmd := &cobra.Command{Use: "create", Short: "Create a pipeline", Example: "  yx pipeline create --name yx-cli-ci --file flow.yml --dry-run\n  yx pipeline create --name yx-cli-ci --file flow.yml --yes", RunE: func(cmd *cobra.Command, args []string) error {
+		if filePath == "" {
+			return fmt.Errorf("--file is required")
+		}
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return fmt.Errorf("read pipeline file: %w", err)
+		}
+		input.Content = string(data)
+		useCase, err := opts.pipelineUseCase()
+		if err != nil {
+			return err
+		}
+		result, err := useCase.CreatePipeline(cmd.Context(), input)
+		if err != nil {
+			return err
+		}
+		r := output.NewRenderer(cmd.OutOrStdout())
+		if ContextFromCommand(cmd).JSON {
+			return r.WriteJSON(result)
+		}
+		if result.DryRun {
+			fmt.Fprintf(cmd.OutOrStdout(), "dry-run: %s\n", result.Summary)
+			return nil
+		}
+		return r.WriteTable([]string{"ID", "NAME", "STATUS"}, [][]string{{result.Pipeline.ID, result.Pipeline.Name, result.Pipeline.Status}})
+	}}
+	cmd.Flags().StringVar(&input.Name, "name", "", "pipeline name")
+	cmd.Flags().StringVar(&filePath, "file", "", "pipeline YAML file")
+	cmd.Flags().BoolVar(&input.DryRun, "dry-run", false, "show intended operation without writing")
+	cmd.Flags().BoolVar(&input.Yes, "yes", false, "skip confirmation")
+	return cmd
 }
 
 func newPipelineRunCommand(opts Options) *cobra.Command {

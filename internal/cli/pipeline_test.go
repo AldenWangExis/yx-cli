@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -14,6 +15,7 @@ func TestPipelineCommands(t *testing.T) {
 	pipelines := &fakePipelineUseCase{
 		list:   []app.PipelineListItem{{ID: "pipe1", Name: "Build", Status: "enabled"}},
 		detail: app.PipelineDetail{ID: "pipe1", Name: "Build", Status: "enabled"},
+		create: app.PipelineMutationResult{DryRun: true, Summary: "create pipeline yx-cli-ci"},
 		run:    app.PipelineRunResult{DryRun: true, Summary: "run pipeline pipe1 on main"},
 		logs:   []string{"line 1", "line 2"},
 	}
@@ -44,6 +46,18 @@ func TestPipelineCommands(t *testing.T) {
 		t.Fatalf("unexpected run input: %+v", pipelines.runInput)
 	}
 
+	contentPath := filepath.Join(t.TempDir(), "flow.yml")
+	if err := os.WriteFile(contentPath, []byte("stages: []\n"), 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	_, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts), "pipeline", "create", "--name", "yx-cli-ci", "--file", contentPath, "--dry-run")
+	if err != nil {
+		t.Fatalf("expected pipeline create dry-run, got: %v stderr=%s", err, stderr)
+	}
+	if pipelines.createInput.Name != "yx-cli-ci" || pipelines.createInput.Content != "stages: []\n" || !pipelines.createInput.DryRun {
+		t.Fatalf("unexpected create input: %+v", pipelines.createInput)
+	}
+
 	stdout, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts), "pipeline", "logs", "run1", "--follow")
 	if err != nil {
 		t.Fatalf("expected pipeline logs, got: %v stderr=%s", err, stderr)
@@ -57,12 +71,14 @@ func TestPipelineCommands(t *testing.T) {
 }
 
 type fakePipelineUseCase struct {
-	list      []app.PipelineListItem
-	detail    app.PipelineDetail
-	run       app.PipelineRunResult
-	logs      []string
-	runInput  app.PipelineRunInput
-	logsInput app.PipelineLogsInput
+	list        []app.PipelineListItem
+	detail      app.PipelineDetail
+	create      app.PipelineMutationResult
+	run         app.PipelineRunResult
+	logs        []string
+	createInput app.PipelineCreateInput
+	runInput    app.PipelineRunInput
+	logsInput   app.PipelineLogsInput
 }
 
 func (u *fakePipelineUseCase) ListPipelines(ctx context.Context) ([]app.PipelineListItem, error) {
@@ -71,6 +87,11 @@ func (u *fakePipelineUseCase) ListPipelines(ctx context.Context) ([]app.Pipeline
 
 func (u *fakePipelineUseCase) GetPipeline(ctx context.Context, id string) (app.PipelineDetail, error) {
 	return u.detail, nil
+}
+
+func (u *fakePipelineUseCase) CreatePipeline(ctx context.Context, input app.PipelineCreateInput) (app.PipelineMutationResult, error) {
+	u.createInput = input
+	return u.create, nil
 }
 
 func (u *fakePipelineUseCase) RunPipeline(ctx context.Context, input app.PipelineRunInput) (app.PipelineRunResult, error) {
