@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/AldenWangExis/yx-cli/internal/safety"
@@ -62,6 +63,9 @@ func TestWorkitemUseCaseMissingRepoMappingDoesNotCallService(t *testing.T) {
 	_, err := useCase.ListWorkitems(context.Background(), WorkitemListInput{Repo: "repo-a"})
 	if err == nil {
 		t.Fatal("expected missing mapping to fail")
+	}
+	if !strings.Contains(err.Error(), "profiles.<profile>.repoProjectMap.repo-a") {
+		t.Fatalf("expected actionable repo project mapping command, got: %v", err)
 	}
 	if workitems.listCalled {
 		t.Fatal("expected service not to be called without mapping")

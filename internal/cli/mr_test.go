@@ -81,16 +81,89 @@ func TestMRViewCreateMergeContracts(t *testing.T) {
 	}
 }
 
-func TestMRListRequiresRepo(t *testing.T) {
+func TestMRCommandsDefaultToCurrentRepository(t *testing.T) {
+	mrs := &fakeMergeRequestUseCase{
+		list: []app.MergeRequestListItem{{ID: "1", Title: "Add feature", State: "opened"}},
+		created: app.MergeRequestMutationResult{
+			DryRun:  true,
+			Summary: "create merge request",
+		},
+		merged: app.MergeRequestMutationResult{
+			DryRun:  true,
+			Summary: "merge merge request",
+		},
+	}
+	resolver := &fakeRepoCurrentResolver{
+		current: app.CurrentRepository{ID: "6925918", Name: "yx-cli", Path: "org/yx-cli"},
+	}
+	opts := Options{
+		ConfigPath:          filepath.Join(t.TempDir(), "config.yaml"),
+		MergeRequestUseCase: mrs,
+		RepoCurrentResolver: resolver,
+	}
+
+	_, stderr, err := executeCommand(t, NewRootCommandWithOptions(opts), "pr", "list")
+	if err != nil {
+		t.Fatalf("expected pr list to default to current repo, got error: %v stderr=%s", err, stderr)
+	}
+	if mrs.listRepo != "6925918" {
+		t.Fatalf("expected list to use current repo id, got %q", mrs.listRepo)
+	}
+
+	_, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts), "mr", "create", "--source", "feat", "--target", "main", "--title", "Add feature", "--dry-run")
+	if err != nil {
+		t.Fatalf("expected mr create to default to current repo, got error: %v stderr=%s", err, stderr)
+	}
+	if mrs.createInput.Repo != "6925918" {
+		t.Fatalf("expected create to use current repo id, got %+v", mrs.createInput)
+	}
+
+	_, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts), "mr", "merge", "1", "--dry-run")
+	if err != nil {
+		t.Fatalf("expected mr merge to default to current repo, got error: %v stderr=%s", err, stderr)
+	}
+	if mrs.mergeInput.Repo != "6925918" {
+		t.Fatalf("expected merge to use current repo id, got %+v", mrs.mergeInput)
+	}
+	if resolver.calls != 3 {
+		t.Fatalf("expected current repo resolver to be called three times, got %d", resolver.calls)
+	}
+}
+
+func TestMRExplicitRepoDoesNotResolveCurrentRepository(t *testing.T) {
+	mrs := &fakeMergeRequestUseCase{}
+	resolver := &fakeRepoCurrentResolver{
+		current: app.CurrentRepository{ID: "current"},
+	}
+	opts := Options{
+		ConfigPath:          filepath.Join(t.TempDir(), "config.yaml"),
+		MergeRequestUseCase: mrs,
+		RepoCurrentResolver: resolver,
+	}
+
+	_, stderr, err := executeCommand(t, NewRootCommandWithOptions(opts), "mr", "list", "--repo", "explicit")
+	if err != nil {
+		t.Fatalf("expected explicit repo to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	if mrs.listRepo != "explicit" {
+		t.Fatalf("expected explicit repo, got %q", mrs.listRepo)
+	}
+	if resolver.calls != 0 {
+		t.Fatalf("expected explicit repo not to call current resolver, got %d", resolver.calls)
+	}
+}
+
+func TestMRListReportsCurrentRepositoryResolutionError(t *testing.T) {
 	_, stderr, err := executeCommand(t, NewRootCommandWithOptions(Options{
 		ConfigPath:          filepath.Join(t.TempDir(), "config.yaml"),
 		MergeRequestUseCase: &fakeMergeRequestUseCase{},
+		RepoCurrentResolver: &fakeRepoCurrentResolver{err: errFakeCurrentRepository},
 	}), "mr", "list")
 	if err == nil {
-		t.Fatal("expected mr list without repo to fail")
+		t.Fatal("expected mr list without repo and without current repo to fail")
 	}
 	if stderr == "" {
-		t.Fatal("expected argument error on stderr")
+		t.Fatal("expected resolver error on stderr")
 	}
 }
 
@@ -100,12 +173,14 @@ type fakeMergeRequestUseCase struct {
 	created     app.MergeRequestMutationResult
 	merged      app.MergeRequestMutationResult
 	listCalls   int
+	listRepo    string
 	createInput app.CreateMergeRequestInput
 	mergeInput  app.MergeMergeRequestInput
 }
 
 func (u *fakeMergeRequestUseCase) ListMergeRequests(ctx context.Context, repo string) ([]app.MergeRequestListItem, error) {
 	u.listCalls++
+	u.listRepo = repo
 	return u.list, nil
 }
 

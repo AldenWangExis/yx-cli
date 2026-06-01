@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -102,6 +103,54 @@ func TestIssueAliasUsesWorkitemUseCase(t *testing.T) {
 	}
 }
 
+func TestIssueListDefaultsToCurrentRepositoryMapping(t *testing.T) {
+	workitems := &fakeWorkitemUseCase{
+		list: []app.WorkitemListItem{{ID: "w1", Title: "Task One", ProjectID: "p1"}},
+	}
+	resolver := &fakeRepoCurrentResolver{
+		current: app.CurrentRepository{ID: "6925918", Name: "yx-cli", Path: "org/yx-cli"},
+	}
+	opts := Options{
+		ConfigPath:          filepath.Join(t.TempDir(), "config.yaml"),
+		WorkitemUseCase:     workitems,
+		RepoCurrentResolver: resolver,
+	}
+
+	_, stderr, err := executeCommand(t, NewRootCommandWithOptions(opts), "issue", "list")
+	if err != nil {
+		t.Fatalf("expected issue list to default to current repo, got error: %v stderr=%s", err, stderr)
+	}
+	if workitems.listInput.Repo != "6925918" {
+		t.Fatalf("expected issue list to use current repo id, got %+v", workitems.listInput)
+	}
+	if resolver.calls != 1 {
+		t.Fatalf("expected current repo resolver to be called once, got %d", resolver.calls)
+	}
+}
+
+func TestIssueListExplicitProjectDoesNotResolveCurrentRepository(t *testing.T) {
+	workitems := &fakeWorkitemUseCase{}
+	resolver := &fakeRepoCurrentResolver{
+		current: app.CurrentRepository{ID: "current"},
+	}
+	opts := Options{
+		ConfigPath:          filepath.Join(t.TempDir(), "config.yaml"),
+		WorkitemUseCase:     workitems,
+		RepoCurrentResolver: resolver,
+	}
+
+	_, stderr, err := executeCommand(t, NewRootCommandWithOptions(opts), "issue", "list", "--project", "p1")
+	if err != nil {
+		t.Fatalf("expected issue list with explicit project to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	if workitems.listInput.ProjectID != "p1" {
+		t.Fatalf("expected explicit project, got %+v", workitems.listInput)
+	}
+	if resolver.calls != 0 {
+		t.Fatalf("expected explicit project not to call current resolver, got %d", resolver.calls)
+	}
+}
+
 func TestIssueRepoMappingErrorIsStable(t *testing.T) {
 	_, stderr, err := executeCommand(t, NewRootCommandWithOptions(Options{
 		ConfigPath:      filepath.Join(t.TempDir(), "config.yaml"),
@@ -114,6 +163,8 @@ func TestIssueRepoMappingErrorIsStable(t *testing.T) {
 		t.Fatalf("expected stable mapping error, got:\n%s", stderr)
 	}
 }
+
+var errFakeCurrentRepository = errors.New("current repository is unavailable")
 
 type fakeWorkitemUseCase struct {
 	projects           []app.Project

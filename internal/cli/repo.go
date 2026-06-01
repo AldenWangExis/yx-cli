@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/AldenWangExis/yx-cli/internal/app"
@@ -37,7 +36,7 @@ func newRepoCommand(opts Options) *cobra.Command {
 		Use:     "repo",
 		Short:   "Manage Codeup repositories",
 		Long:    "Manage Codeup repositories, branches, commits, files, and clones.",
-		Example: "  yx repo list\n  yx repo current\n  yx repo view <repo>\n  yx repo create --name demo --path demo --visibility private --yes\n  yx repo branch list <repo>\n  yx repo commit list <repo> --ref master\n  yx repo file view <repo> test.py --ref master",
+		Example: "  yx repo list\n  yx repo current\n  yx repo view\n  yx repo view <repo>\n  yx repo create --name demo --path demo --visibility private --yes\n  yx repo branch list\n  yx repo commit list --ref master\n  yx repo file view test.py --ref master",
 	}
 	cmd.AddCommand(newRepoListCommand(opts))
 	cmd.AddCommand(newRepoCurrentCommand(opts))
@@ -63,7 +62,7 @@ func newRepoCurrentCommand(opts Options) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			workDir, err := os.Getwd()
+			workDir, err := currentWorkDir()
 			if err != nil {
 				return err
 			}
@@ -120,15 +119,23 @@ func newRepoListCommand(opts Options) *cobra.Command {
 
 func newRepoViewCommand(opts Options) *cobra.Command {
 	return &cobra.Command{
-		Use:   "view <repo>",
+		Use:   "view [repo]",
 		Short: "View a repository",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			repoID := ""
+			if len(args) > 0 {
+				repoID = args[0]
+			}
+			repoID, err := resolveRepositoryID(cmd, opts, repoID)
+			if err != nil {
+				return err
+			}
 			useCase, err := opts.repoUseCase()
 			if err != nil {
 				return err
 			}
-			repo, err := useCase.GetRepository(cmd.Context(), args[0])
+			repo, err := useCase.GetRepository(cmd.Context(), repoID)
 			if err != nil {
 				return err
 			}
@@ -197,7 +204,7 @@ func newRepoBranchCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "branch",
 		Short:   "Manage repository branches",
-		Example: "  yx repo branch list <repo>\n  yx repo branch sync <repo> --source master --target feat/a --dry-run",
+		Example: "  yx repo branch list\n  yx repo branch list <repo>\n  yx repo branch sync --source master --target feat/a --dry-run\n  yx repo branch sync <repo> --source master --target feat/a --dry-run",
 	}
 	cmd.AddCommand(newRepoBranchListCommand(opts))
 	cmd.AddCommand(newRepoBranchSyncCommand(opts))
@@ -206,16 +213,24 @@ func newRepoBranchCommand(opts Options) *cobra.Command {
 
 func newRepoBranchListCommand(opts Options) *cobra.Command {
 	return &cobra.Command{
-		Use:     "list <repo>",
+		Use:     "list [repo]",
 		Short:   "List repository branches",
-		Example: "  yx repo branch list 6925595\n  yx --json repo branch list 6925595",
-		Args:    cobra.ExactArgs(1),
+		Example: "  yx repo branch list\n  yx repo branch list 6925595\n  yx --json repo branch list",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			repoID := ""
+			if len(args) > 0 {
+				repoID = args[0]
+			}
+			repoID, err := resolveRepositoryID(cmd, opts, repoID)
+			if err != nil {
+				return err
+			}
 			useCase, err := opts.repoUseCase()
 			if err != nil {
 				return err
 			}
-			branches, err := useCase.ListBranches(cmd.Context(), args[0])
+			branches, err := useCase.ListBranches(cmd.Context(), repoID)
 			if err != nil {
 				return err
 			}
@@ -235,12 +250,19 @@ func newRepoBranchListCommand(opts Options) *cobra.Command {
 func newRepoBranchSyncCommand(opts Options) *cobra.Command {
 	var input app.BranchSyncInput
 	cmd := &cobra.Command{
-		Use:     "sync <repo>",
+		Use:     "sync [repo]",
 		Short:   "Create a remote branch from a source ref",
-		Example: "  yx repo branch sync 6925595 --source master --target feat/a --dry-run\n  yx repo branch sync 6925595 --source master --target feat/a --yes",
-		Args:    cobra.ExactArgs(1),
+		Example: "  yx repo branch sync --source master --target feat/a --dry-run\n  yx repo branch sync 6925595 --source master --target feat/a --yes",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			input.Repo = args[0]
+			if len(args) > 0 {
+				input.Repo = args[0]
+			}
+			var err error
+			input.Repo, err = resolveRepositoryID(cmd, opts, input.Repo)
+			if err != nil {
+				return err
+			}
 			useCase, err := opts.repoUseCase()
 			if err != nil {
 				return err
@@ -263,7 +285,7 @@ func newRepoCommitCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "commit",
 		Short:   "Inspect repository commits",
-		Example: "  yx repo commit list <repo> --ref master",
+		Example: "  yx repo commit list --ref master\n  yx repo commit list <repo> --ref master",
 	}
 	cmd.AddCommand(newRepoCommitListCommand(opts))
 	return cmd
@@ -272,12 +294,19 @@ func newRepoCommitCommand(opts Options) *cobra.Command {
 func newRepoCommitListCommand(opts Options) *cobra.Command {
 	var input app.CommitListInput
 	cmd := &cobra.Command{
-		Use:     "list <repo>",
+		Use:     "list [repo]",
 		Short:   "List repository commits",
-		Example: "  yx repo commit list 6925595 --ref master\n  yx --json repo commit list 6925595",
-		Args:    cobra.ExactArgs(1),
+		Example: "  yx repo commit list --ref master\n  yx repo commit list 6925595 --ref master\n  yx --json repo commit list",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			input.Repo = args[0]
+			if len(args) > 0 {
+				input.Repo = args[0]
+			}
+			var err error
+			input.Repo, err = resolveRepositoryID(cmd, opts, input.Repo)
+			if err != nil {
+				return err
+			}
 			useCase, err := opts.repoUseCase()
 			if err != nil {
 				return err
@@ -305,7 +334,7 @@ func newRepoFileCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "file",
 		Short:   "Inspect repository files",
-		Example: "  yx repo file view <repo> test.py --ref master",
+		Example: "  yx repo file view test.py --ref master\n  yx repo file view <repo> test.py --ref master",
 	}
 	cmd.AddCommand(newRepoFileViewCommand(opts))
 	return cmd
@@ -314,13 +343,22 @@ func newRepoFileCommand(opts Options) *cobra.Command {
 func newRepoFileViewCommand(opts Options) *cobra.Command {
 	var input app.FileGetInput
 	cmd := &cobra.Command{
-		Use:     "view <repo> <path>",
+		Use:     "view [repo] <path>",
 		Short:   "View a repository file",
-		Example: "  yx repo file view 6925595 test.py --ref master\n  yx --json repo file view 6925595 test.py --ref master",
-		Args:    cobra.ExactArgs(2),
+		Example: "  yx repo file view test.py --ref master\n  yx repo file view 6925595 test.py --ref master\n  yx --json repo file view test.py --ref master",
+		Args:    cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			input.Repo = args[0]
-			input.Path = args[1]
+			if len(args) == 1 {
+				input.Path = args[0]
+			} else {
+				input.Repo = args[0]
+				input.Path = args[1]
+			}
+			var err error
+			input.Repo, err = resolveRepositoryID(cmd, opts, input.Repo)
+			if err != nil {
+				return err
+			}
 			useCase, err := opts.repoUseCase()
 			if err != nil {
 				return err

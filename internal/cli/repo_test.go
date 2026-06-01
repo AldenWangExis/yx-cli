@@ -126,6 +126,105 @@ func TestRepoCurrentJSONCallsResolver(t *testing.T) {
 	}
 }
 
+func TestRepoReadCommandsDefaultToCurrentRepository(t *testing.T) {
+	repos := &fakeRepoUseCase{
+		detail:   app.RepositoryDetail{ID: "6925918", Name: "yx-cli", Path: "org/yx-cli"},
+		branches: []app.BranchListItem{{Name: "master", Default: true}},
+		commits:  []app.CommitListItem{{ID: "abc123", ShortID: "abc123", Title: "Initial commit"}},
+		file:     app.RepositoryFile{Path: "test.py", Ref: "master", Content: "print(1)\n"},
+	}
+	resolver := &fakeRepoCurrentResolver{
+		current: app.CurrentRepository{ID: "6925918", Name: "yx-cli", Path: "org/yx-cli"},
+	}
+	opts := Options{
+		ConfigPath:          filepath.Join(t.TempDir(), "config.yaml"),
+		RepoUseCase:         repos,
+		RepoCurrentResolver: resolver,
+	}
+
+	_, stderr, err := executeCommand(t, NewRootCommandWithOptions(opts), "repo", "view")
+	if err != nil {
+		t.Fatalf("expected repo view to default to current repo, got error: %v stderr=%s", err, stderr)
+	}
+	if repos.getID != "6925918" {
+		t.Fatalf("expected repo view to use current repo id, got %q", repos.getID)
+	}
+
+	_, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts), "repo", "branch", "list")
+	if err != nil {
+		t.Fatalf("expected branch list to default to current repo, got error: %v stderr=%s", err, stderr)
+	}
+	if repos.branchRepo != "6925918" {
+		t.Fatalf("expected branch list to use current repo id, got %q", repos.branchRepo)
+	}
+
+	_, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts), "repo", "commit", "list", "--ref", "master")
+	if err != nil {
+		t.Fatalf("expected commit list to default to current repo, got error: %v stderr=%s", err, stderr)
+	}
+	if repos.commitInput.Repo != "6925918" {
+		t.Fatalf("expected commit list to use current repo id, got %+v", repos.commitInput)
+	}
+
+	stdout, stderr, err := executeCommand(t, NewRootCommandWithOptions(opts), "repo", "file", "view", "test.py", "--ref", "master")
+	if err != nil {
+		t.Fatalf("expected file view to default to current repo, got error: %v stderr=%s", err, stderr)
+	}
+	if stdout != "print(1)\n" || repos.fileInput.Repo != "6925918" || repos.fileInput.Path != "test.py" {
+		t.Fatalf("unexpected file default output=%q input=%+v", stdout, repos.fileInput)
+	}
+
+	if resolver.calls != 4 {
+		t.Fatalf("expected current repo resolver to be called four times, got %d", resolver.calls)
+	}
+}
+
+func TestRepoBranchSyncDefaultsToCurrentRepository(t *testing.T) {
+	repos := &fakeRepoUseCase{}
+	resolver := &fakeRepoCurrentResolver{
+		current: app.CurrentRepository{ID: "6925918", Name: "yx-cli", Path: "org/yx-cli"},
+	}
+	opts := Options{
+		ConfigPath:          filepath.Join(t.TempDir(), "config.yaml"),
+		RepoUseCase:         repos,
+		RepoCurrentResolver: resolver,
+	}
+
+	_, stderr, err := executeCommand(t, NewRootCommandWithOptions(opts),
+		"repo", "branch", "sync", "--source", "master", "--target", "feat/a", "--dry-run")
+	if err != nil {
+		t.Fatalf("expected branch sync to default to current repo, got error: %v stderr=%s", err, stderr)
+	}
+	if repos.syncInput.Repo != "6925918" || repos.syncInput.Source != "master" || repos.syncInput.Target != "feat/a" {
+		t.Fatalf("expected branch sync to use current repo id, got %+v", repos.syncInput)
+	}
+}
+
+func TestRepoExplicitArgumentDoesNotResolveCurrentRepository(t *testing.T) {
+	repos := &fakeRepoUseCase{
+		branches: []app.BranchListItem{{Name: "master"}},
+	}
+	resolver := &fakeRepoCurrentResolver{
+		current: app.CurrentRepository{ID: "current"},
+	}
+	opts := Options{
+		ConfigPath:          filepath.Join(t.TempDir(), "config.yaml"),
+		RepoUseCase:         repos,
+		RepoCurrentResolver: resolver,
+	}
+
+	_, stderr, err := executeCommand(t, NewRootCommandWithOptions(opts), "repo", "branch", "list", "explicit")
+	if err != nil {
+		t.Fatalf("expected explicit branch repo to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	if repos.branchRepo != "explicit" {
+		t.Fatalf("expected explicit branch repo, got %q", repos.branchRepo)
+	}
+	if resolver.calls != 0 {
+		t.Fatalf("expected explicit repo not to call current resolver, got %d", resolver.calls)
+	}
+}
+
 func TestRepoHelpShowsSubcommandsAndExamples(t *testing.T) {
 	stdout, stderr, err := executeCommand(t, NewRootCommandWithOptions(Options{
 		ConfigPath:  filepath.Join(t.TempDir(), "config.yaml"),
@@ -211,6 +310,7 @@ type fakeRepoUseCase struct {
 	cloneID          string
 	cloneDestination string
 	createInput      app.CreateRepositoryInput
+	getID            string
 	branchRepo       string
 	commitInput      app.CommitListInput
 	fileInput        app.FileGetInput
@@ -220,10 +320,12 @@ type fakeRepoUseCase struct {
 type fakeRepoCurrentResolver struct {
 	current app.CurrentRepository
 	input   app.CurrentRepositoryInput
+	calls   int
 	err     error
 }
 
 func (r *fakeRepoCurrentResolver) CurrentRepository(ctx context.Context, input app.CurrentRepositoryInput) (app.CurrentRepository, error) {
+	r.calls++
 	r.input = input
 	return r.current, r.err
 }
@@ -233,6 +335,7 @@ func (u *fakeRepoUseCase) ListRepositories(ctx context.Context) ([]app.Repositor
 }
 
 func (u *fakeRepoUseCase) GetRepository(ctx context.Context, id string) (app.RepositoryDetail, error) {
+	u.getID = id
 	return u.detail, nil
 }
 

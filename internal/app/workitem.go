@@ -105,7 +105,7 @@ type ErrMissingRepoProjectMapping struct {
 }
 
 func (e ErrMissingRepoProjectMapping) Error() string {
-	return fmt.Sprintf("repo %q is not mapped to a project; run yx config set repo.%s.project <project-id>", e.Repo, e.Repo)
+	return fmt.Sprintf("repo %q is not mapped to a project; run yx config set profiles.<profile>.repoProjectMap.%s <project-id>", e.Repo, e.Repo)
 }
 
 func NewWorkitemUseCase(projects ProjectService, workitems WorkitemService, repoProjectMap map[string]string, safetyEnv safety.Environment) *WorkitemUseCase {

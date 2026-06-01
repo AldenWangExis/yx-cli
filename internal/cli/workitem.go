@@ -91,7 +91,7 @@ func newWorkitemCommand(opts Options, use string) *cobra.Command {
 		Use:     use,
 		Short:   "Manage Yunxiao work items",
 		Long:    "Manage Yunxiao work items. The issue command is an alias over workitem.",
-		Example: fmt.Sprintf("  yx %s list --project <project-id>\n  yx %s view <workitem-id>\n  yx %s create --project <project-id> --type Task --title \"Do work\" --dry-run\n  yx %s update <workitem-id> --status done --dry-run", use, use, use, use),
+		Example: fmt.Sprintf("  yx %s list\n  yx %s list --project <project-id>\n  yx %s view <workitem-id>\n  yx %s create --project <project-id> --type Task --title \"Do work\" --dry-run\n  yx %s update <workitem-id> --status done --dry-run", use, use, use, use, use),
 	}
 	cmd.AddCommand(newWorkitemListCommand(opts))
 	cmd.AddCommand(newWorkitemViewCommand(opts))
@@ -105,8 +105,15 @@ func newWorkitemListCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Short:   "List work items",
-		Example: "  yx workitem list --project <project-id>\n  yx issue list --repo <repo>",
+		Example: "  yx workitem list\n  yx workitem list --project <project-id>\n  yx issue list --repo <repo>",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if input.ProjectID == "" && input.Repo == "" {
+				repoID, err := resolveRepositoryID(cmd, opts, "")
+				if err != nil {
+					return err
+				}
+				input.Repo = repoID
+			}
 			useCase, err := opts.workitemUseCase()
 			if err != nil {
 				return err
