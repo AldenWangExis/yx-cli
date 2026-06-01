@@ -2,7 +2,7 @@
 set -eu
 
 repo="${YX_INSTALL_REPO:-AldenWangExis/yx-cli}"
-version="${YX_INSTALL_VERSION:-latest}"
+version="${YX_INSTALL_VERSION:-v0.2.1}"
 install_dir="${YX_INSTALL_DIR:-$HOME/.local/bin}"
 
 need() {
@@ -10,6 +10,10 @@ need() {
 		printf 'yx install: missing required command: %s\n' "$1" >&2
 		exit 1
 	fi
+}
+
+can_use_gh() {
+	command -v gh >/dev/null 2>&1 && gh auth status -h github.com >/dev/null 2>&1
 }
 
 detect_asset() {
@@ -31,11 +35,7 @@ detect_asset() {
 
 download_url() {
 	asset="$1"
-	if [ "$version" = "latest" ]; then
-		printf 'https://github.com/%s/releases/latest/download/%s' "$repo" "$asset"
-	else
-		printf 'https://github.com/%s/releases/download/%s/%s' "$repo" "$version" "$asset"
-	fi
+	printf 'https://github.com/%s/releases/download/%s/%s' "$repo" "$version" "$asset"
 }
 
 need curl
@@ -48,17 +48,25 @@ need rm
 
 asset="${YX_INSTALL_ASSET:-$(detect_asset)}"
 url="$(download_url "$asset")"
-tmp="${TMPDIR:-/tmp}/yx-install.$$"
+tmp_dir="${TMPDIR:-/tmp}/yx-install.$$"
+tmp="$tmp_dir/$asset"
 target="$install_dir/yx"
 
 cleanup() {
-	rm -f "$tmp"
+	rm -rf "$tmp_dir"
 }
 trap cleanup EXIT INT TERM
 
 mkdir -p "$install_dir"
-printf 'Downloading %s\n' "$url"
-curl -fsSL -o "$tmp" "$url"
+mkdir -p "$tmp_dir"
+if can_use_gh; then
+	printf 'Downloading %s from %s with gh\n' "$asset" "$repo"
+	gh release download "$version" --repo "$repo" --pattern "$asset" --dir "$tmp_dir" --clobber
+else
+	need curl
+	printf 'Downloading %s\n' "$url"
+	curl -fsSL -o "$tmp" "$url"
+fi
 chmod +x "$tmp"
 mv "$tmp" "$target"
 

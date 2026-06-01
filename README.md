@@ -4,17 +4,28 @@
 
 ## Install
 
-Install the latest GitHub Release on macOS Apple Silicon:
+This repository is currently private, so authenticated GitHub access is required to download Release assets. Install the current GitHub Release on macOS Apple Silicon with `gh`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/main/scripts/install.sh | sh
+mkdir -p ~/.local/bin
+gh release download v0.2.1 \
+  --repo AldenWangExis/yx-cli \
+  --pattern yx-darwin-arm64 \
+  --output ~/.local/bin/yx \
+  --clobber
+chmod +x ~/.local/bin/yx
+```
+
+If you already have the repo checked out, you can also run the installer script:
+
+```bash
+scripts/install.sh
 ```
 
 Install a specific version:
 
 ```bash
-YX_INSTALL_VERSION=v0.2.0 \
-  sh -c "$(curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/main/scripts/install.sh)"
+YX_INSTALL_VERSION=v0.2.1 scripts/install.sh
 ```
 
 The installer writes `yx` to `~/.local/bin` by default. If that directory is not in your `PATH`, add it for zsh:
@@ -31,13 +42,10 @@ yx --help
 yx auth status
 ```
 
-Manual macOS install:
+For a public repository, the same installer can be fetched with curl:
 
 ```bash
-curl -fsSL -o yx https://github.com/AldenWangExis/yx-cli/releases/latest/download/yx-darwin-arm64
-chmod +x yx
-mkdir -p ~/.local/bin
-mv yx ~/.local/bin/yx
+curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/main/scripts/install.sh | sh
 ```
 
 Windows users can download `yx-windows-amd64.exe` from the GitHub Release assets and place it in a directory on `PATH`.
