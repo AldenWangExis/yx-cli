@@ -38,6 +38,48 @@ download_url() {
 	printf 'https://github.com/%s/releases/download/%s/%s' "$repo" "$version" "$asset"
 }
 
+profile_path() {
+	case "${SHELL:-}" in
+	*/zsh) printf '%s/.zshrc' "$HOME" ;;
+	*/bash) printf '%s/.bashrc' "$HOME" ;;
+	*) printf '%s/.profile' "$HOME" ;;
+	esac
+}
+
+path_entry() {
+	if [ "$install_dir" = "$HOME/.local/bin" ]; then
+		printf 'export PATH="$HOME/.local/bin:$PATH"'
+	else
+		printf 'export PATH="%s:$PATH"' "$install_dir"
+	fi
+}
+
+ensure_path() {
+	case ":$PATH:" in
+	*":$install_dir:"*)
+		printf '%s is already on PATH. You can run yx now.\n' "$install_dir"
+		return 0
+		;;
+	esac
+
+	profile="$(profile_path)"
+	entry="$(path_entry)"
+	if [ -f "$profile" ] && grep -F "$entry" "$profile" >/dev/null 2>&1; then
+		printf '%s is already configured in %s.\n' "$install_dir" "$profile"
+		printf 'Restart your shell, open a new terminal, or run: . %s\n' "$profile"
+		return 0
+	fi
+
+	mkdir -p "$(dirname "$profile")"
+	{
+		printf '\n'
+		printf '# yx-cli\n'
+		printf '%s\n' "$entry"
+	} >>"$profile"
+	printf 'Added %s to PATH in %s.\n' "$install_dir" "$profile"
+	printf 'Restart your shell, open a new terminal, or run: . %s\n' "$profile"
+}
+
 need curl
 need uname
 need tr
@@ -45,6 +87,8 @@ need chmod
 need mkdir
 need mv
 need rm
+need grep
+need dirname
 
 asset="${YX_INSTALL_ASSET:-$(detect_asset)}"
 url="$(download_url "$asset")"
@@ -71,7 +115,4 @@ chmod +x "$tmp"
 mv "$tmp" "$target"
 
 printf 'Installed yx to %s\n' "$target"
-case ":$PATH:" in
-*":$install_dir:"*) ;;
-*) printf 'Add %s to PATH before running yx globally.\n' "$install_dir" ;;
-esac
+ensure_path
