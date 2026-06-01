@@ -12,6 +12,15 @@ func TestPipelineUseCaseListViewAndLogs(t *testing.T) {
 		list:   []PipelineListItem{{ID: "pipe1", Name: "Build", Status: "enabled"}},
 		detail: PipelineDetail{ID: "pipe1", Name: "Build", Status: "enabled"},
 		logs:   []string{"line 1", "line 2"},
+		runs:   []PipelineRun{{ID: "run1", PipelineID: "pipe1", Status: "SUCCESS", Branch: "main", CommitID: "abc123"}},
+		runDetail: PipelineRun{
+			ID:         "run1",
+			PipelineID: "pipe1",
+			Status:     "SUCCESS",
+			Jobs:       []PipelineJob{{ID: "job1", Name: "Run tests", Status: "SUCCESS"}},
+		},
+		jobSteps: []PipelineJobStep{{StepIndex: "1", BuildID: "99", Name: "Run go test", Status: "FAIL"}},
+		jobLogs:  PipelineJobRunLog{Content: "line 1\nline 2", Last: 2, More: false},
 	}
 	useCase := NewPipelineUseCase(service, safety.Environment{})
 
@@ -37,6 +46,44 @@ func TestPipelineUseCaseListViewAndLogs(t *testing.T) {
 	}
 	if len(logs) != 2 || !service.follow {
 		t.Fatalf("unexpected logs=%+v follow=%v", logs, service.follow)
+	}
+
+	runs, err := useCase.ListPipelineRuns(context.Background(), PipelineRunListInput{
+		PipelineID: "pipe1",
+		Branch:     "main",
+		Tag:        "v1.0.0-alpha",
+		Commit:     "abc123",
+		PerPage:    20,
+	})
+	if err != nil {
+		t.Fatalf("expected pipeline runs to list, got: %v", err)
+	}
+	if len(runs) != 1 || runs[0].ID != "run1" || service.runListInput.Tag != "v1.0.0-alpha" {
+		t.Fatalf("unexpected runs=%+v input=%+v", runs, service.runListInput)
+	}
+
+	run, err := useCase.GetPipelineRun(context.Background(), PipelineRunGetInput{PipelineID: "pipe1", RunID: "run1"})
+	if err != nil {
+		t.Fatalf("expected run detail, got: %v", err)
+	}
+	if len(run.Jobs) != 1 || run.Jobs[0].ID != "job1" {
+		t.Fatalf("unexpected run detail: %+v", run)
+	}
+
+	jobLogs, err := useCase.GetPipelineJobRunLog(context.Background(), PipelineJobRunLogInput{PipelineID: "pipe1", RunID: "run1", JobID: "job1"})
+	if err != nil {
+		t.Fatalf("expected job logs, got: %v", err)
+	}
+	if jobLogs.Content != "line 1\nline 2" || service.jobLogInput.JobID != "job1" {
+		t.Fatalf("unexpected job logs=%+v input=%+v", jobLogs, service.jobLogInput)
+	}
+
+	steps, err := useCase.GetPipelineJobSteps(context.Background(), PipelineJobRunLogInput{PipelineID: "pipe1", RunID: "run1", JobID: "job1"})
+	if err != nil {
+		t.Fatalf("expected job steps, got: %v", err)
+	}
+	if len(steps) != 1 || steps[0].BuildID != "99" || !service.jobStepsCalled {
+		t.Fatalf("unexpected job steps=%+v input=%+v", steps, service.jobStepsInput)
 	}
 }
 
@@ -120,6 +167,36 @@ func TestPipelineRunRequiresConfirmation(t *testing.T) {
 	}
 }
 
+func TestPipelineRunQueriesRequireIdentifiers(t *testing.T) {
+	service := &fakePipelineService{}
+	useCase := NewPipelineUseCase(service, safety.Environment{})
+
+	if _, err := useCase.ListPipelineRuns(context.Background(), PipelineRunListInput{}); err == nil {
+		t.Fatal("expected list runs without pipeline id to fail")
+	}
+	if _, err := useCase.GetPipelineRun(context.Background(), PipelineRunGetInput{PipelineID: "pipe1"}); err == nil {
+		t.Fatal("expected get run without run id to fail")
+	}
+	if _, err := useCase.GetPipelineJobRunLog(context.Background(), PipelineJobRunLogInput{PipelineID: "pipe1", RunID: "run1"}); err == nil {
+		t.Fatal("expected job logs without job id to fail")
+	}
+	if _, err := useCase.GetPipelineJobRunLog(context.Background(), PipelineJobRunLogInput{PipelineID: "pipe1", RunID: "run1", JobID: "job1", StepIndex: "1"}); err == nil {
+		t.Fatal("expected job logs without build id to fail")
+	}
+	if _, err := useCase.GetPipelineJobRunLog(context.Background(), PipelineJobRunLogInput{PipelineID: "pipe1", RunID: "run1", JobID: "job1", BuildID: "99"}); err == nil {
+		t.Fatal("expected job logs without step index to fail")
+	}
+	if _, err := useCase.GetPipelineJobRunLog(context.Background(), PipelineJobRunLogInput{PipelineID: "pipe1", RunID: "run1", JobID: "job1", Offset: -1}); err == nil {
+		t.Fatal("expected negative offset to fail")
+	}
+	if _, err := useCase.GetPipelineJobSteps(context.Background(), PipelineJobRunLogInput{PipelineID: "pipe1", RunID: "run1"}); err == nil {
+		t.Fatal("expected job steps without job id to fail")
+	}
+	if service.runListCalled || service.runDetailCalled || service.jobLogCalled || service.jobStepsCalled {
+		t.Fatal("expected service not to be called for invalid run queries")
+	}
+}
+
 func TestPipelineRunWithYesMutatesOnce(t *testing.T) {
 	service := &fakePipelineService{run: PipelineRun{ID: "run1", PipelineID: "pipe1", Status: "running"}}
 	useCase := NewPipelineUseCase(service, safety.Environment{ConfirmWrites: true, IsTerminal: false})
@@ -137,17 +214,29 @@ func TestPipelineRunWithYesMutatesOnce(t *testing.T) {
 }
 
 type fakePipelineService struct {
-	list         []PipelineListItem
-	detail       PipelineDetail
-	created      PipelineDetail
-	run          PipelineRun
-	logs         []string
-	follow       bool
-	createInput  PipelineCreateInput
-	createCalled bool
-	createCalls  int
-	runCalled    bool
-	runCalls     int
+	list            []PipelineListItem
+	detail          PipelineDetail
+	created         PipelineDetail
+	run             PipelineRun
+	runs            []PipelineRun
+	runDetail       PipelineRun
+	logs            []string
+	jobLogs         PipelineJobRunLog
+	jobSteps        []PipelineJobStep
+	follow          bool
+	createInput     PipelineCreateInput
+	runListInput    PipelineRunListInput
+	runGetInput     PipelineRunGetInput
+	jobLogInput     PipelineJobRunLogInput
+	jobStepsInput   PipelineJobRunLogInput
+	createCalled    bool
+	createCalls     int
+	runCalled       bool
+	runCalls        int
+	runListCalled   bool
+	runDetailCalled bool
+	jobLogCalled    bool
+	jobStepsCalled  bool
 }
 
 func (s *fakePipelineService) ListPipelines(ctx context.Context) ([]PipelineListItem, error) {
@@ -175,6 +264,30 @@ func (s *fakePipelineService) RunPipeline(ctx context.Context, input PipelineRun
 		return PipelineRun{ID: "run1", PipelineID: input.PipelineID, Status: "running"}, nil
 	}
 	return s.run, nil
+}
+
+func (s *fakePipelineService) ListPipelineRuns(ctx context.Context, input PipelineRunListInput) ([]PipelineRun, error) {
+	s.runListCalled = true
+	s.runListInput = input
+	return s.runs, nil
+}
+
+func (s *fakePipelineService) GetPipelineRun(ctx context.Context, input PipelineRunGetInput) (PipelineRun, error) {
+	s.runDetailCalled = true
+	s.runGetInput = input
+	return s.runDetail, nil
+}
+
+func (s *fakePipelineService) GetPipelineJobRunLog(ctx context.Context, input PipelineJobRunLogInput) (PipelineJobRunLog, error) {
+	s.jobLogCalled = true
+	s.jobLogInput = input
+	return s.jobLogs, nil
+}
+
+func (s *fakePipelineService) GetPipelineJobSteps(ctx context.Context, input PipelineJobRunLogInput) ([]PipelineJobStep, error) {
+	s.jobStepsCalled = true
+	s.jobStepsInput = input
+	return s.jobSteps, nil
 }
 
 func (s *fakePipelineService) GetPipelineLogs(ctx context.Context, input PipelineLogsInput) ([]string, error) {

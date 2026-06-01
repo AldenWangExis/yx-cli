@@ -32,6 +32,20 @@ func TestAdapterListViewRunLogs(t *testing.T) {
 		case r.Method == http.MethodPost && r.URL.Path == "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/runs":
 			runCalls++
 			_, _ = w.Write([]byte(`789`))
+		case r.Method == http.MethodGet && r.URL.Path == "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/runs":
+			if r.URL.Query().Get("branch") != "main" || r.URL.Query().Get("tag") != "v1.0.0-alpha" || r.URL.Query().Get("commit") != "abc123" {
+				t.Fatalf("unexpected run list query: %s", r.URL.RawQuery)
+			}
+			_, _ = w.Write([]byte(`{"pipelineRuns":[{"pipelineRunId":789,"pipelineId":123,"status":"SUCCESS","sources":[{"data":{"branch":"main","commit":"abc123"}}]}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/runs/run1":
+			_, _ = w.Write([]byte(`{"pipelineRun":{"pipelineRunId":789,"pipelineId":123,"status":"SUCCESS","stages":[{"stageInfo":{"id":340,"name":"Test","status":"SUCCESS","jobs":[{"id":456,"name":"Run tests","status":"SUCCESS"}]}}]}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/pipelineRuns/run1/jobs/job1/steps":
+			_, _ = w.Write([]byte(`{"actionName":"Go test","buildId":99,"jobId":456,"steps":[{"stepIndex":1,"stepName":"Run go test","status":"FAIL"},{"stepIndex":2,"stepName":"Collect output","status":"SUCCESS"}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/pipelineRuns/run1/jobs/job1/step/log":
+			if r.URL.Query().Get("stepIndex") == "" || r.URL.Query().Get("buildId") != "99" || r.URL.Query().Get("offset") != "0" || r.URL.Query().Get("limit") != "50000" {
+				t.Fatalf("unexpected step log query: %s", r.URL.RawQuery)
+			}
+			_, _ = w.Write([]byte(`{"logs":"line 1\nline 2","last":2,"more":false}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/oapi/v1/flow/organizations/org-1/pipelineRuns/run1/logs":
 			_, _ = w.Write([]byte(`{"lines":["line 1","line 2"]}`))
 		default:
@@ -66,9 +80,75 @@ func TestAdapterListViewRunLogs(t *testing.T) {
 	if runCalls != 1 {
 		t.Fatalf("expected one run call, got %d", runCalls)
 	}
+	runs, err := adapter.ListPipelineRuns(context.Background(), app.PipelineRunListInput{PipelineID: "pipe1", Branch: "main", Tag: "v1.0.0-alpha", Commit: "abc123"})
+	if err != nil || len(runs) != 1 || runs[0].ID != "789" || runs[0].Branch != "main" {
+		t.Fatalf("unexpected runs=%+v err=%v", runs, err)
+	}
+	runDetail, err := adapter.GetPipelineRun(context.Background(), app.PipelineRunGetInput{PipelineID: "pipe1", RunID: "run1"})
+	if err != nil || len(runDetail.Jobs) != 1 || runDetail.Jobs[0].ID != "456" {
+		t.Fatalf("unexpected run detail=%+v err=%v", runDetail, err)
+	}
+	steps, err := adapter.GetPipelineJobSteps(context.Background(), app.PipelineJobRunLogInput{PipelineID: "pipe1", RunID: "run1", JobID: "job1"})
+	if err != nil || len(steps) != 2 || steps[0].BuildID != "99" {
+		t.Fatalf("unexpected job steps=%+v err=%v", steps, err)
+	}
+	jobLogs, err := adapter.GetPipelineJobRunLog(context.Background(), app.PipelineJobRunLogInput{PipelineID: "pipe1", RunID: "run1", JobID: "job1"})
+	if err != nil || !strings.Contains(jobLogs.Content, "line 1") {
+		t.Fatalf("unexpected job logs=%+v err=%v", jobLogs, err)
+	}
 	logs, err := adapter.GetPipelineLogs(context.Background(), app.PipelineLogsInput{RunID: "run1", Follow: true})
 	if err != nil || len(logs) != 2 {
 		t.Fatalf("unexpected logs=%+v err=%v", logs, err)
+	}
+}
+
+func TestAdapterListPipelineRunsFallsBackToRunsPath(t *testing.T) {
+	var paths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/runs":
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"errorMessage":"not found"}`))
+		case "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/pipelineRuns":
+			_, _ = w.Write([]byte(`[{"id":789,"pipelineId":123,"status":"SUCCESS"}]`))
+		default:
+			t.Fatalf("unexpected request: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	adapter := NewAdapter(yunxiao.ClientConfig{BaseURL: server.URL, Token: "token-1", OrganizationID: "org-1", Region: "center"})
+
+	runs, err := adapter.ListPipelineRuns(context.Background(), app.PipelineRunListInput{PipelineID: "pipe1"})
+	if err != nil {
+		t.Fatalf("expected fallback list to succeed, got: %v", err)
+	}
+	if len(runs) != 1 || runs[0].ID != "789" {
+		t.Fatalf("unexpected fallback runs: %+v", runs)
+	}
+	if len(paths) != 2 {
+		t.Fatalf("expected primary and fallback requests, got %+v", paths)
+	}
+}
+
+func TestAdapterDecodesBuildProcessNodesFromJobSteps(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path != "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/pipelineRuns/run1/jobs/job1/steps" {
+			t.Fatalf("unexpected request: %s", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`[{"buildId":99,"jobId":99,"buildProcessNodes":[{"stepIndex":0,"stepName":"Clone","status":"success"},{"stepIndex":3,"stepName":"Run go test","status":"fail"}]}]`))
+	}))
+	defer server.Close()
+	adapter := NewAdapter(yunxiao.ClientConfig{BaseURL: server.URL, Token: "token-1", OrganizationID: "org-1", Region: "center"})
+
+	steps, err := adapter.GetPipelineJobSteps(context.Background(), app.PipelineJobRunLogInput{PipelineID: "pipe1", RunID: "run1", JobID: "job1"})
+	if err != nil {
+		t.Fatalf("expected steps to decode, got: %v", err)
+	}
+	if len(steps) != 2 || steps[1].StepIndex != "3" || steps[1].BuildID != "99" || steps[1].Name != "Run go test" {
+		t.Fatalf("unexpected steps: %+v", steps)
 	}
 }
 

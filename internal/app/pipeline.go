@@ -20,9 +20,38 @@ type PipelineDetail struct {
 }
 
 type PipelineRun struct {
-	ID         string `json:"id"`
-	PipelineID string `json:"pipelineId"`
-	Status     string `json:"status"`
+	ID         string          `json:"id"`
+	PipelineID string          `json:"pipelineId"`
+	Status     string          `json:"status"`
+	Branch     string          `json:"branch,omitempty"`
+	Tag        string          `json:"tag,omitempty"`
+	CommitID   string          `json:"commitId,omitempty"`
+	Trigger    string          `json:"trigger,omitempty"`
+	CreatedAt  string          `json:"createdAt,omitempty"`
+	StartedAt  string          `json:"startedAt,omitempty"`
+	FinishedAt string          `json:"finishedAt,omitempty"`
+	Stages     []PipelineStage `json:"stages,omitempty"`
+	Jobs       []PipelineJob   `json:"jobs,omitempty"`
+}
+
+type PipelineStage struct {
+	ID     string        `json:"id,omitempty"`
+	Name   string        `json:"name"`
+	Status string        `json:"status"`
+	Jobs   []PipelineJob `json:"jobs,omitempty"`
+}
+
+type PipelineJob struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
+}
+
+type PipelineJobStep struct {
+	StepIndex string `json:"stepIndex"`
+	BuildID   string `json:"buildId"`
+	Name      string `json:"name"`
+	Status    string `json:"status"`
 }
 
 type PipelineCreateInput struct {
@@ -37,6 +66,36 @@ type PipelineRunInput struct {
 	Branch     string
 	DryRun     bool
 	Yes        bool
+}
+
+type PipelineRunListInput struct {
+	PipelineID string
+	Branch     string
+	Tag        string
+	Commit     string
+	Page       int
+	PerPage    int
+}
+
+type PipelineRunGetInput struct {
+	PipelineID string
+	RunID      string
+}
+
+type PipelineJobRunLogInput struct {
+	PipelineID string
+	RunID      string
+	JobID      string
+	StepIndex  string
+	BuildID    string
+	Offset     int
+	Limit      int
+}
+
+type PipelineJobRunLog struct {
+	Content string `json:"content"`
+	Last    int    `json:"last,omitempty"`
+	More    bool   `json:"more"`
 }
 
 type PipelineLogsInput struct {
@@ -61,6 +120,10 @@ type PipelineService interface {
 	GetPipeline(ctx context.Context, id string) (PipelineDetail, error)
 	CreatePipeline(ctx context.Context, input PipelineCreateInput) (PipelineDetail, error)
 	RunPipeline(ctx context.Context, input PipelineRunInput) (PipelineRun, error)
+	ListPipelineRuns(ctx context.Context, input PipelineRunListInput) ([]PipelineRun, error)
+	GetPipelineRun(ctx context.Context, input PipelineRunGetInput) (PipelineRun, error)
+	GetPipelineJobSteps(ctx context.Context, input PipelineJobRunLogInput) ([]PipelineJobStep, error)
+	GetPipelineJobRunLog(ctx context.Context, input PipelineJobRunLogInput) (PipelineJobRunLog, error)
 	GetPipelineLogs(ctx context.Context, input PipelineLogsInput) ([]string, error)
 }
 
@@ -120,6 +183,40 @@ func (u *PipelineUseCase) RunPipeline(ctx context.Context, input PipelineRunInpu
 		return PipelineRunResult{}, err
 	}
 	return PipelineRunResult{Run: run}, nil
+}
+
+func (u *PipelineUseCase) ListPipelineRuns(ctx context.Context, input PipelineRunListInput) ([]PipelineRun, error) {
+	if input.PipelineID == "" {
+		return nil, fmt.Errorf("pipeline id is required")
+	}
+	return u.service.ListPipelineRuns(ctx, input)
+}
+
+func (u *PipelineUseCase) GetPipelineRun(ctx context.Context, input PipelineRunGetInput) (PipelineRun, error) {
+	if input.PipelineID == "" || input.RunID == "" {
+		return PipelineRun{}, fmt.Errorf("pipeline id and run id are required")
+	}
+	return u.service.GetPipelineRun(ctx, input)
+}
+
+func (u *PipelineUseCase) GetPipelineJobRunLog(ctx context.Context, input PipelineJobRunLogInput) (PipelineJobRunLog, error) {
+	if input.PipelineID == "" || input.RunID == "" || input.JobID == "" {
+		return PipelineJobRunLog{}, fmt.Errorf("pipeline id, run id, and job id are required")
+	}
+	if (input.StepIndex == "") != (input.BuildID == "") {
+		return PipelineJobRunLog{}, fmt.Errorf("step index and build id must be provided together")
+	}
+	if input.Offset < 0 || input.Limit < 0 {
+		return PipelineJobRunLog{}, fmt.Errorf("offset and limit must be non-negative")
+	}
+	return u.service.GetPipelineJobRunLog(ctx, input)
+}
+
+func (u *PipelineUseCase) GetPipelineJobSteps(ctx context.Context, input PipelineJobRunLogInput) ([]PipelineJobStep, error) {
+	if input.PipelineID == "" || input.RunID == "" || input.JobID == "" {
+		return nil, fmt.Errorf("pipeline id, run id, and job id are required")
+	}
+	return u.service.GetPipelineJobSteps(ctx, input)
 }
 
 func (u *PipelineUseCase) GetPipelineLogs(ctx context.Context, input PipelineLogsInput) ([]string, error) {
