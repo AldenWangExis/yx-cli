@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -54,5 +55,90 @@ func TestRepoListBuildsDefaultUseCaseFromConfigAndToken(t *testing.T) {
 	}
 	if len(repos) != 1 || repos[0].Name != "demo" {
 		t.Fatalf("unexpected repos: %+v", repos)
+	}
+}
+
+func TestRepoCurrentBuildsDefaultResolverFromConfigTokenGitRemoteAndCaches(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if r.Header.Get("x-yunxiao-token") != "token-1" {
+			t.Fatalf("missing token header")
+		}
+		if r.URL.Path != "/oapi/v1/codeup/organizations/org-1/repositories" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"id":6925918,"name":"yx-cli","pathWithNamespace":"org-1/yx-cli"}]`))
+	}))
+	defer server.Close()
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	if err := config.NewStore(configPath).Save(config.Config{
+		Current: "default",
+		Profiles: map[string]config.Profile{
+			"default": {
+				Domain:       server.URL,
+				Organization: "org-1",
+				Region:       "center",
+			},
+		},
+	}); err != nil {
+		t.Fatalf("failed to save config: %v", err)
+	}
+	if err := auth.NewFileTokenStore(filepath.Join(dir, "tokens.yaml")).Save("default", "token-1"); err != nil {
+		t.Fatalf("failed to save token: %v", err)
+	}
+
+	repoDir := filepath.Join(dir, "repo")
+	runGit(t, dir, "init", "repo")
+	runGit(t, repoDir, "remote", "add", "origin", "git@codeup.aliyun.com:org-1/yx-cli.git")
+	t.Chdir(repoDir)
+
+	stdout, stderr, err := executeCommand(t, NewRootCommandWithOptions(Options{ConfigPath: configPath}),
+		"--json", "repo", "current", "--refresh")
+	if err != nil {
+		t.Fatalf("expected repo current to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	var current app.CurrentRepository
+	if err := json.Unmarshal([]byte(stdout), &current); err != nil {
+		t.Fatalf("expected JSON current repo, got error: %v output=%s", err, stdout)
+	}
+	if current.ID != "6925918" || current.Path != "org-1/yx-cli" || current.Source != "api" {
+		t.Fatalf("unexpected current repo: %+v", current)
+	}
+
+	loaded, err := config.NewStore(configPath).Load()
+	if err != nil {
+		t.Fatalf("expected config to load after cache write, got: %v", err)
+	}
+	if loaded.Profiles["default"].RepoIdentityMap["org-1/yx-cli"].ID != "6925918" {
+		t.Fatalf("expected repo identity cache, got %+v", loaded.Profiles["default"].RepoIdentityMap)
+	}
+
+	stdout, stderr, err = executeCommand(t, NewRootCommandWithOptions(Options{ConfigPath: configPath}),
+		"--json", "repo", "current")
+	if err != nil {
+		t.Fatalf("expected cached repo current to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	if err := json.Unmarshal([]byte(stdout), &current); err != nil {
+		t.Fatalf("expected JSON cached repo, got error: %v output=%s", err, stdout)
+	}
+	if current.ID != "6925918" || current.Source != "cache" {
+		t.Fatalf("expected cached current repo, got %+v", current)
+	}
+	if requests != 1 {
+		t.Fatalf("expected one API request because second call uses cache, got %d", requests)
+	}
+}
+
+func runGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, output)
 	}
 }

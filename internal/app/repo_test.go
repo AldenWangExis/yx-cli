@@ -167,12 +167,14 @@ type fakeRepositoryService struct {
 	synced       BranchListItem
 	createInput  CreateRepositoryInput
 	syncInput    BranchSyncInput
+	listCalls    int
 	getCalled    bool
 	createCalled bool
 	err          error
 }
 
 func (s *fakeRepositoryService) ListRepositories(ctx context.Context) ([]RepositoryListItem, error) {
+	s.listCalls++
 	return s.list, s.err
 }
 

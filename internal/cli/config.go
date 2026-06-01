@@ -20,6 +20,7 @@ type Options struct {
 	AuthProvider        auth.Provider
 	DefaultProfile      string
 	RepoUseCase         RepositoryUseCase
+	RepoCurrentResolver RepositoryCurrentResolver
 	MergeRequestUseCase MergeRequestUseCase
 	WorkitemUseCase     WorkitemUseCase
 	PipelineUseCase     PipelineUseCase

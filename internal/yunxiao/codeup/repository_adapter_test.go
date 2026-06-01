@@ -49,6 +49,48 @@ func TestRepositoryAdapterListRepositoriesCenterEndpoint(t *testing.T) {
 	}
 }
 
+func TestRepositoryAdapterListRepositoriesPaginatesUntilShortPage(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if r.URL.Path != "/oapi/v1/codeup/organizations/org-1/repositories" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("perPage") != "2" {
+			t.Fatalf("unexpected perPage: %s", r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Query().Get("page") {
+		case "1":
+			_, _ = w.Write([]byte(`[{"id":1,"name":"a","pathWithNamespace":"org/a"},{"id":2,"name":"b","pathWithNamespace":"org/b"}]`))
+		case "2":
+			_, _ = w.Write([]byte(`[{"id":3,"name":"c","pathWithNamespace":"org/c"}]`))
+		default:
+			t.Fatalf("unexpected page: %s", r.URL.Query().Get("page"))
+		}
+	}))
+	defer server.Close()
+
+	adapter := NewRepositoryAdapter(yunxiao.ClientConfig{
+		BaseURL:        server.URL,
+		Token:          "token-1",
+		OrganizationID: "org-1",
+		Region:         "center",
+	})
+	adapter.perPage = 2
+
+	repos, err := adapter.ListRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("expected list to succeed, got: %v", err)
+	}
+	if requests != 2 {
+		t.Fatalf("expected two paginated requests, got %d", requests)
+	}
+	if len(repos) != 3 || repos[2].Path != "org/c" {
+		t.Fatalf("unexpected repositories: %+v", repos)
+	}
+}
+
 func TestRepositoryAdapterGetRepositoryRegionEndpoint(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.EscapedPath() != "/oapi/v1/codeup/repositories/org%2Fdemo" {

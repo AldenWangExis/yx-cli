@@ -3,6 +3,8 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
+	"time"
 
 	"github.com/AldenWangExis/yx-cli/internal/app"
 	"github.com/AldenWangExis/yx-cli/internal/auth"
@@ -26,20 +28,67 @@ type RepositoryUseCase interface {
 	GetFile(ctx context.Context, input app.FileGetInput) (app.RepositoryFile, error)
 }
 
+type RepositoryCurrentResolver interface {
+	CurrentRepository(ctx context.Context, input app.CurrentRepositoryInput) (app.CurrentRepository, error)
+}
+
 func newRepoCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "repo",
 		Short:   "Manage Codeup repositories",
 		Long:    "Manage Codeup repositories, branches, commits, files, and clones.",
-		Example: "  yx repo list\n  yx repo view <repo>\n  yx repo create --name demo --path demo --visibility private --yes\n  yx repo branch list <repo>\n  yx repo commit list <repo> --ref master\n  yx repo file view <repo> test.py --ref master",
+		Example: "  yx repo list\n  yx repo current\n  yx repo view <repo>\n  yx repo create --name demo --path demo --visibility private --yes\n  yx repo branch list <repo>\n  yx repo commit list <repo> --ref master\n  yx repo file view <repo> test.py --ref master",
 	}
 	cmd.AddCommand(newRepoListCommand(opts))
+	cmd.AddCommand(newRepoCurrentCommand(opts))
 	cmd.AddCommand(newRepoViewCommand(opts))
 	cmd.AddCommand(newRepoCreateCommand(opts))
 	cmd.AddCommand(newRepoCloneCommand(opts))
 	cmd.AddCommand(newRepoBranchCommand(opts))
 	cmd.AddCommand(newRepoCommitCommand(opts))
 	cmd.AddCommand(newRepoFileCommand(opts))
+	return cmd
+}
+
+func newRepoCurrentCommand(opts Options) *cobra.Command {
+	var remote string
+	var refresh bool
+	cmd := &cobra.Command{
+		Use:     "current",
+		Short:   "Resolve the current Codeup repository from git remotes",
+		Long:    "Resolve the current Codeup repository by reading git remotes, matching the exact Codeup path through OpenAPI, and caching the repository identity.",
+		Example: "  yx repo current\n  yx --json repo current\n  yx repo current --remote codeup\n  yx repo current --refresh",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			resolver, profileName, organization, err := opts.repoCurrentResolver(ContextFromCommand(cmd))
+			if err != nil {
+				return err
+			}
+			workDir, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			current, err := resolver.CurrentRepository(cmd.Context(), app.CurrentRepositoryInput{
+				ProfileName:  profileName,
+				Organization: organization,
+				WorkDir:      workDir,
+				Remote:       remote,
+				Refresh:      refresh,
+			})
+			if err != nil {
+				return err
+			}
+			renderer := output.NewRenderer(cmd.OutOrStdout())
+			if ContextFromCommand(cmd).JSON {
+				return renderer.WriteJSON(current)
+			}
+			return renderer.WriteTable(
+				[]string{"ID", "NAME", "PATH", "REMOTE", "SOURCE"},
+				[][]string{{current.ID, current.Name, current.Path, current.Remote, current.Source}},
+			)
+		},
+	}
+	cmd.Flags().StringVar(&remote, "remote", "", "git remote name to resolve")
+	cmd.Flags().BoolVar(&refresh, "refresh", false, "bypass cached repository identity")
 	return cmd
 }
 
@@ -352,4 +401,101 @@ func (o Options) repoUseCase() (RepositoryUseCase, error) {
 	return app.NewRepoUseCase(repositories, gitx.NewRunner(), safety.Environment{
 		ConfirmWrites: profile.Safety.ConfirmWrites,
 	}), nil
+}
+
+func (o Options) repoCurrentResolver(ctx Context) (RepositoryCurrentResolver, string, string, error) {
+	if o.RepoCurrentResolver != nil {
+		profileName := ctx.Profile
+		if profileName == "" {
+			profileName = o.DefaultProfile
+		}
+		if profileName == "" {
+			profileName = "default"
+		}
+		return o.RepoCurrentResolver, profileName, ctx.Organization, nil
+	}
+	store := config.NewStore(o.ConfigPath)
+	cfg, err := store.Load()
+	if err != nil {
+		return nil, "", "", err
+	}
+	profileName := ctx.Profile
+	if profileName == "" {
+		profileName = o.DefaultProfile
+	}
+	if profileName == "" {
+		profileName = cfg.Current
+	}
+	if profileName == "" {
+		profileName = "default"
+	}
+	profile, ok := cfg.Profiles[profileName]
+	if !ok {
+		return nil, "", "", fmt.Errorf("profile %q does not exist", profileName)
+	}
+	if ctx.Organization != "" {
+		profile.Organization = ctx.Organization
+	}
+	if ctx.Domain != "" {
+		profile.Domain = ctx.Domain
+	}
+	token, ok, err := auth.NewFileTokenStore(defaultTokenPath(o.ConfigPath)).Load(profileName)
+	if err != nil {
+		return nil, "", "", err
+	}
+	if !ok {
+		return nil, "", "", fmt.Errorf("profile %q is not logged in", profileName)
+	}
+	repositories := codeup.NewRepositoryAdapter(yunxiao.ClientConfig{
+		BaseURL:        profile.Domain,
+		Token:          token,
+		OrganizationID: profile.Organization,
+		Region:         profile.Region,
+	})
+	return app.NewRepositoryIdentityResolver(repositories, gitx.NewRunner(), configRepositoryIdentityCache{store: store}), profileName, profile.Organization, nil
+}
+
+type configRepositoryIdentityCache struct {
+	store *config.Store
+}
+
+func (c configRepositoryIdentityCache) LookupRepositoryIdentity(profileName, key string) (app.CurrentRepository, bool, error) {
+	cfg, err := c.store.Load()
+	if err != nil {
+		return app.CurrentRepository{}, false, err
+	}
+	profile, ok := cfg.Profiles[profileName]
+	if !ok {
+		return app.CurrentRepository{}, false, nil
+	}
+	identity, ok := profile.RepoIdentityMap[key]
+	if !ok {
+		return app.CurrentRepository{}, false, nil
+	}
+	return app.CurrentRepository{
+		ID:     identity.ID,
+		Name:   identity.Name,
+		Path:   identity.Path,
+		Remote: identity.Remote,
+	}, true, nil
+}
+
+func (c configRepositoryIdentityCache) StoreRepositoryIdentity(profileName, key string, repo app.CurrentRepository) error {
+	cfg, err := c.store.Load()
+	if err != nil {
+		return err
+	}
+	profile := cfg.Profiles[profileName]
+	if profile.RepoIdentityMap == nil {
+		profile.RepoIdentityMap = map[string]config.RepoIdentity{}
+	}
+	profile.RepoIdentityMap[key] = config.RepoIdentity{
+		ID:        repo.ID,
+		Name:      repo.Name,
+		Path:      repo.Path,
+		Remote:    repo.Remote,
+		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	cfg.Profiles[profileName] = profile
+	return c.store.Save(cfg)
 }

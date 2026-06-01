@@ -42,6 +42,15 @@ func TestSaveAndLoadConfig(t *testing.T) {
 				RepoProjectMap: map[string]string{
 					"repo-a": "project-a",
 				},
+				RepoIdentityMap: map[string]RepoIdentity{
+					"org/demo": {
+						ID:        "2813489",
+						Name:      "demo",
+						Path:      "org/demo",
+						Remote:    "origin",
+						UpdatedAt: "2026-06-01T00:00:00Z",
+					},
+				},
 			},
 		},
 	}
@@ -69,6 +78,9 @@ func TestSaveAndLoadConfig(t *testing.T) {
 	if loaded.Profiles["default"].RepoProjectMap["repo-a"] != "project-a" {
 		t.Fatalf("expected repo project mapping to round-trip")
 	}
+	if loaded.Profiles["default"].RepoIdentityMap["org/demo"].ID != "2813489" {
+		t.Fatalf("expected repo identity cache to round-trip")
+	}
 
 	info, err := os.Stat(path)
 	if err != nil {
@@ -76,6 +88,21 @@ func TestSaveAndLoadConfig(t *testing.T) {
 	}
 	if info.Mode().Perm()&0o077 != 0 {
 		t.Fatalf("expected config permissions to reject group/world access, got %v", info.Mode().Perm())
+	}
+}
+
+func TestLoadInitializesRepoIdentityMap(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("current: default\nprofiles:\n  default:\n    domain: https://devops.aliyun.com\n"), 0o600); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	cfg, err := NewStore(path).Load()
+	if err != nil {
+		t.Fatalf("expected config to load, got error: %v", err)
+	}
+	if cfg.Profiles["default"].RepoIdentityMap == nil {
+		t.Fatal("expected repo identity map to be initialized")
 	}
 }
 

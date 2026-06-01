@@ -90,6 +90,42 @@ func TestRepoListAndViewJSON(t *testing.T) {
 	}
 }
 
+func TestRepoCurrentJSONCallsResolver(t *testing.T) {
+	resolver := &fakeRepoCurrentResolver{
+		current: app.CurrentRepository{
+			ID:        "6925918",
+			Name:      "yx-cli",
+			Path:      "68086322e3a71588779435e0/yx-cli",
+			Remote:    "codeup",
+			RemoteURL: "git@codeup.aliyun.com:68086322e3a71588779435e0/yx-cli.git",
+			Source:    "api",
+		},
+	}
+	opts := Options{
+		ConfigPath:          filepath.Join(t.TempDir(), "config.yaml"),
+		RepoCurrentResolver: resolver,
+	}
+
+	stdout, stderr, err := executeCommand(t, NewRootCommandWithOptions(opts),
+		"--json", "repo", "current", "--remote", "codeup", "--refresh")
+	if err != nil {
+		t.Fatalf("expected repo current to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	var current app.CurrentRepository
+	if err := json.Unmarshal([]byte(stdout), &current); err != nil {
+		t.Fatalf("expected JSON current repo, got error: %v output=%s", err, stdout)
+	}
+	if current.ID != "6925918" || current.Remote != "codeup" {
+		t.Fatalf("unexpected current repo: %+v", current)
+	}
+	if resolver.input.Remote != "codeup" || !resolver.input.Refresh {
+		t.Fatalf("unexpected resolver input: %+v", resolver.input)
+	}
+	if resolver.input.WorkDir == "" {
+		t.Fatal("expected repo current to pass a working directory")
+	}
+}
+
 func TestRepoHelpShowsSubcommandsAndExamples(t *testing.T) {
 	stdout, stderr, err := executeCommand(t, NewRootCommandWithOptions(Options{
 		ConfigPath:  filepath.Join(t.TempDir(), "config.yaml"),
@@ -102,6 +138,7 @@ func TestRepoHelpShowsSubcommandsAndExamples(t *testing.T) {
 		"Manage Codeup repositories",
 		"Available Commands:",
 		"create",
+		"current",
 		"branch",
 		"commit",
 		"file",
@@ -178,6 +215,17 @@ type fakeRepoUseCase struct {
 	commitInput      app.CommitListInput
 	fileInput        app.FileGetInput
 	syncInput        app.BranchSyncInput
+}
+
+type fakeRepoCurrentResolver struct {
+	current app.CurrentRepository
+	input   app.CurrentRepositoryInput
+	err     error
+}
+
+func (r *fakeRepoCurrentResolver) CurrentRepository(ctx context.Context, input app.CurrentRepositoryInput) (app.CurrentRepository, error) {
+	r.input = input
+	return r.current, r.err
 }
 
 func (u *fakeRepoUseCase) ListRepositories(ctx context.Context) ([]app.RepositoryListItem, error) {

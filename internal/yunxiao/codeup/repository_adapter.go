@@ -26,24 +26,29 @@ func NewRepositoryAdapter(config yunxiao.ClientConfig) *RepositoryAdapter {
 }
 
 func (a *RepositoryAdapter) ListRepositories(ctx context.Context) ([]app.RepositoryListItem, error) {
-	query := url.Values{}
-	query.Set("page", "1")
-	query.Set("perPage", strconv.Itoa(a.perPage))
-	data, err := a.client.DoJSON(ctx, http.MethodGet, a.repositoriesPath(), query, nil)
-	if err != nil {
-		return nil, err
-	}
-	var response []repositoryResponse
-	if err := json.Unmarshal(data, &response); err != nil {
-		return nil, fmt.Errorf("decode repositories: %w", err)
-	}
-	repos := make([]app.RepositoryListItem, 0, len(response))
-	for _, repo := range response {
-		repos = append(repos, app.RepositoryListItem{
-			ID:   strconv.FormatInt(repo.ID, 10),
-			Name: repo.Name,
-			Path: repo.PathWithNamespace,
-		})
+	repos := []app.RepositoryListItem{}
+	for page := 1; ; page++ {
+		query := url.Values{}
+		query.Set("page", strconv.Itoa(page))
+		query.Set("perPage", strconv.Itoa(a.perPage))
+		data, err := a.client.DoJSON(ctx, http.MethodGet, a.repositoriesPath(), query, nil)
+		if err != nil {
+			return nil, err
+		}
+		var response []repositoryResponse
+		if err := json.Unmarshal(data, &response); err != nil {
+			return nil, fmt.Errorf("decode repositories: %w", err)
+		}
+		for _, repo := range response {
+			repos = append(repos, app.RepositoryListItem{
+				ID:   strconv.FormatInt(repo.ID, 10),
+				Name: repo.Name,
+				Path: repo.PathWithNamespace,
+			})
+		}
+		if len(response) < a.perPage {
+			break
+		}
 	}
 	return repos, nil
 }
