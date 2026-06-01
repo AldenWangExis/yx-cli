@@ -1,0 +1,218 @@
+package cli
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+
+	"github.com/AldenWangExis/yx-cli/internal/config"
+	"github.com/spf13/cobra"
+)
+
+type Options struct {
+	ConfigPath string
+}
+
+func defaultOptions() Options {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = "."
+	}
+	return Options{ConfigPath: filepath.Join(home, ".config", "yx", "config.yaml")}
+}
+
+func newConfigCommand(opts Options) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "config",
+		Short: "Manage yx configuration",
+	}
+
+	cmd.AddCommand(newConfigListCommand(opts))
+	cmd.AddCommand(newConfigGetCommand(opts))
+	cmd.AddCommand(newConfigSetCommand(opts))
+	cmd.AddCommand(newConfigUseCommand(opts))
+
+	return cmd
+}
+
+func newConfigListCommand(opts Options) *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List configuration",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.NewStore(opts.ConfigPath).Load()
+			if err != nil {
+				return err
+			}
+			if ContextFromCommand(cmd).JSON {
+				data, err := json.MarshalIndent(cfg, "", "  ")
+				if err != nil {
+					return err
+				}
+				fmt.Fprintln(cmd.OutOrStdout(), string(data))
+				return nil
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "current: %s\nprofiles: %d\n", cfg.Current, len(cfg.Profiles))
+			return nil
+		},
+	}
+}
+
+func newConfigGetCommand(opts Options) *cobra.Command {
+	return &cobra.Command{
+		Use:   "get <key>",
+		Short: "Get a configuration value",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.NewStore(opts.ConfigPath).Load()
+			if err != nil {
+				return err
+			}
+			value, ok := getValue(cfg, args[0])
+			if !ok {
+				return fmt.Errorf("unknown config key %q", args[0])
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), value)
+			return nil
+		},
+	}
+}
+
+func newConfigSetCommand(opts Options) *cobra.Command {
+	return &cobra.Command{
+		Use:   "set <key> <value>",
+		Short: "Set a configuration value",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store := config.NewStore(opts.ConfigPath)
+			cfg, err := store.Load()
+			if err != nil {
+				return err
+			}
+			if err := setValue(&cfg, args[0], args[1]); err != nil {
+				return err
+			}
+			return store.Save(cfg)
+		},
+	}
+}
+
+func newConfigUseCommand(opts Options) *cobra.Command {
+	return &cobra.Command{
+		Use:   "use <profile>",
+		Short: "Set the active profile",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store := config.NewStore(opts.ConfigPath)
+			cfg, err := store.Load()
+			if err != nil {
+				return err
+			}
+			if _, ok := cfg.Profiles[args[0]]; !ok {
+				return fmt.Errorf("profile %q does not exist", args[0])
+			}
+			cfg.Current = args[0]
+			return store.Save(cfg)
+		},
+	}
+}
+
+func getValue(cfg config.Config, key string) (string, bool) {
+	switch key {
+	case "current":
+		return cfg.Current, true
+	}
+
+	profileName, field, ok := splitProfileKey(key)
+	if !ok {
+		return "", false
+	}
+	profile, ok := cfg.Profiles[profileName]
+	if !ok {
+		return "", false
+	}
+
+	switch field {
+	case "domain":
+		return profile.Domain, true
+	case "organization":
+		return profile.Organization, true
+	case "region":
+		return profile.Region, true
+	case "output":
+		return profile.Output, true
+	case "safety.confirmWrites":
+		return strconv.FormatBool(profile.Safety.ConfirmWrites), true
+	default:
+		const prefix = "repoProjectMap."
+		if len(field) > len(prefix) && field[:len(prefix)] == prefix {
+			value, ok := profile.RepoProjectMap[field[len(prefix):]]
+			return value, ok
+		}
+		return "", false
+	}
+}
+
+func setValue(cfg *config.Config, key, value string) error {
+	if cfg.Profiles == nil {
+		cfg.Profiles = map[string]config.Profile{}
+	}
+	if key == "current" {
+		cfg.Current = value
+		return nil
+	}
+
+	profileName, field, ok := splitProfileKey(key)
+	if !ok {
+		return fmt.Errorf("unknown config key %q", key)
+	}
+	profile := cfg.Profiles[profileName]
+	if profile.RepoProjectMap == nil {
+		profile.RepoProjectMap = map[string]string{}
+	}
+
+	switch field {
+	case "domain":
+		profile.Domain = value
+	case "organization":
+		profile.Organization = value
+	case "region":
+		profile.Region = value
+	case "output":
+		profile.Output = value
+	case "safety.confirmWrites":
+		parsed, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("parse safety.confirmWrites: %w", err)
+		}
+		profile.Safety.ConfirmWrites = parsed
+	default:
+		const prefix = "repoProjectMap."
+		if len(field) <= len(prefix) || field[:len(prefix)] != prefix {
+			return fmt.Errorf("unknown config key %q", key)
+		}
+		profile.RepoProjectMap[field[len(prefix):]] = value
+	}
+
+	cfg.Profiles[profileName] = profile
+	return nil
+}
+
+func splitProfileKey(key string) (string, string, bool) {
+	const prefix = "profiles."
+	if len(key) <= len(prefix) || key[:len(prefix)] != prefix {
+		return "", "", false
+	}
+	rest := key[len(prefix):]
+	for i, ch := range rest {
+		if ch == '.' {
+			if i == 0 || i == len(rest)-1 {
+				return "", "", false
+			}
+			return rest[:i], rest[i+1:], true
+		}
+	}
+	return "", "", false
+}

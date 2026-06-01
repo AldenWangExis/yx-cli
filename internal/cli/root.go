@@ -3,6 +3,10 @@ package cli
 import "github.com/spf13/cobra"
 
 func NewRootCommand() *cobra.Command {
+	return NewRootCommandWithOptions(defaultOptions())
+}
+
+func NewRootCommandWithOptions(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "yx",
 		Short:        "Yunxiao command line client",
@@ -19,6 +23,7 @@ func NewRootCommand() *cobra.Command {
 {{end}}Usage:
   {{.UseLine}}
 `)
+	cmd.AddCommand(newConfigCommand(opts))
 
 	return cmd
 }
