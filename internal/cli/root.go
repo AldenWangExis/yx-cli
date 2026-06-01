@@ -31,6 +31,7 @@ func NewRootCommandWithOptions(opts Options) *cobra.Command {
 	cmd.AddCommand(newProjectCommand(opts))
 	cmd.AddCommand(newWorkitemCommand(opts, "workitem"))
 	cmd.AddCommand(newWorkitemCommand(opts, "issue"))
+	cmd.AddCommand(newPipelineCommand(opts))
 
 	return cmd
 }

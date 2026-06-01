@@ -19,6 +19,7 @@ type Options struct {
 	RepoUseCase         RepositoryUseCase
 	MergeRequestUseCase MergeRequestUseCase
 	WorkitemUseCase     WorkitemUseCase
+	PipelineUseCase     PipelineUseCase
 }
 
 func defaultOptions() Options {
