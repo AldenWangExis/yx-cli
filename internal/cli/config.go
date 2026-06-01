@@ -16,6 +16,7 @@ type Options struct {
 	ConfigPath     string
 	AuthProvider   auth.Provider
 	DefaultProfile string
+	RepoUseCase    RepositoryUseCase
 }
 
 func defaultOptions() Options {
