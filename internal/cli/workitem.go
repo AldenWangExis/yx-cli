@@ -1,0 +1,182 @@
+package cli
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/AldenWangExis/yx-cli/internal/app"
+	"github.com/AldenWangExis/yx-cli/internal/output"
+	"github.com/spf13/cobra"
+)
+
+type WorkitemUseCase interface {
+	ListProjects(ctx context.Context) ([]app.Project, error)
+	ListWorkitems(ctx context.Context, input app.WorkitemListInput) ([]app.WorkitemListItem, error)
+	GetWorkitem(ctx context.Context, id string) (app.WorkitemDetail, error)
+	CreateWorkitem(ctx context.Context, input app.CreateWorkitemInput) (app.WorkitemMutationResult, error)
+	UpdateWorkitem(ctx context.Context, input app.UpdateWorkitemInput) (app.WorkitemMutationResult, error)
+}
+
+func newProjectCommand(opts Options) *cobra.Command {
+	cmd := &cobra.Command{Use: "project", Short: "Manage Yunxiao projects"}
+	cmd.AddCommand(&cobra.Command{
+		Use:   "list",
+		Short: "List projects",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			useCase, err := opts.workitemUseCase()
+			if err != nil {
+				return err
+			}
+			projects, err := useCase.ListProjects(cmd.Context())
+			if err != nil {
+				return err
+			}
+			renderer := output.NewRenderer(cmd.OutOrStdout())
+			if ContextFromCommand(cmd).JSON {
+				return renderer.WriteJSON(projects)
+			}
+			rows := make([][]string, 0, len(projects))
+			for _, project := range projects {
+				rows = append(rows, []string{project.ID, project.Name})
+			}
+			return renderer.WriteTable([]string{"ID", "NAME"}, rows)
+		},
+	})
+	return cmd
+}
+
+func newWorkitemCommand(opts Options, use string) *cobra.Command {
+	cmd := &cobra.Command{Use: use, Short: "Manage Yunxiao work items"}
+	cmd.AddCommand(newWorkitemListCommand(opts))
+	cmd.AddCommand(newWorkitemViewCommand(opts))
+	cmd.AddCommand(newWorkitemCreateCommand(opts))
+	cmd.AddCommand(newWorkitemUpdateCommand(opts))
+	return cmd
+}
+
+func newWorkitemListCommand(opts Options) *cobra.Command {
+	var input app.WorkitemListInput
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List work items",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			useCase, err := opts.workitemUseCase()
+			if err != nil {
+				return err
+			}
+			items, err := useCase.ListWorkitems(cmd.Context(), input)
+			if err != nil {
+				return err
+			}
+			renderer := output.NewRenderer(cmd.OutOrStdout())
+			if ContextFromCommand(cmd).JSON {
+				return renderer.WriteJSON(items)
+			}
+			rows := make([][]string, 0, len(items))
+			for _, item := range items {
+				rows = append(rows, []string{item.ID, item.Title, item.Status, item.Type, item.ProjectID})
+			}
+			return renderer.WriteTable([]string{"ID", "TITLE", "STATUS", "TYPE", "PROJECT"}, rows)
+		},
+	}
+	cmd.Flags().StringVar(&input.ProjectID, "project", "", "project id")
+	cmd.Flags().StringVar(&input.Repo, "repo", "", "repository mapped to a project")
+	return cmd
+}
+
+func newWorkitemViewCommand(opts Options) *cobra.Command {
+	return &cobra.Command{
+		Use:   "view <workitem-id>",
+		Short: "View a work item",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			useCase, err := opts.workitemUseCase()
+			if err != nil {
+				return err
+			}
+			item, err := useCase.GetWorkitem(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			renderer := output.NewRenderer(cmd.OutOrStdout())
+			if ContextFromCommand(cmd).JSON {
+				return renderer.WriteJSON(item)
+			}
+			return renderer.WriteTable(
+				[]string{"ID", "TITLE", "STATUS", "TYPE", "PROJECT"},
+				[][]string{{item.ID, item.Title, item.Status, item.Type, item.ProjectID}},
+			)
+		},
+	}
+}
+
+func newWorkitemCreateCommand(opts Options) *cobra.Command {
+	var input app.CreateWorkitemInput
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create a work item",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			useCase, err := opts.workitemUseCase()
+			if err != nil {
+				return err
+			}
+			result, err := useCase.CreateWorkitem(cmd.Context(), input)
+			if err != nil {
+				return err
+			}
+			return renderWorkitemMutation(cmd, result)
+		},
+	}
+	cmd.Flags().StringVar(&input.ProjectID, "project", "", "project id")
+	cmd.Flags().StringVar(&input.Type, "type", "", "work item type")
+	cmd.Flags().StringVar(&input.Title, "title", "", "work item title")
+	cmd.Flags().BoolVar(&input.DryRun, "dry-run", false, "show intended operation without writing")
+	cmd.Flags().BoolVar(&input.Yes, "yes", false, "skip confirmation")
+	return cmd
+}
+
+func newWorkitemUpdateCommand(opts Options) *cobra.Command {
+	var input app.UpdateWorkitemInput
+	cmd := &cobra.Command{
+		Use:   "update <workitem-id>",
+		Short: "Update a work item",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			input.ID = args[0]
+			useCase, err := opts.workitemUseCase()
+			if err != nil {
+				return err
+			}
+			result, err := useCase.UpdateWorkitem(cmd.Context(), input)
+			if err != nil {
+				return err
+			}
+			return renderWorkitemMutation(cmd, result)
+		},
+	}
+	cmd.Flags().StringVar(&input.Status, "status", "", "new status")
+	cmd.Flags().StringVar(&input.Assignee, "assignee", "", "assignee")
+	cmd.Flags().BoolVar(&input.DryRun, "dry-run", false, "show intended operation without writing")
+	cmd.Flags().BoolVar(&input.Yes, "yes", false, "skip confirmation")
+	return cmd
+}
+
+func renderWorkitemMutation(cmd *cobra.Command, result app.WorkitemMutationResult) error {
+	renderer := output.NewRenderer(cmd.OutOrStdout())
+	if ContextFromCommand(cmd).JSON {
+		return renderer.WriteJSON(result)
+	}
+	if result.DryRun {
+		fmt.Fprintf(cmd.OutOrStdout(), "dry-run: %s\n", result.Summary)
+		return nil
+	}
+	item := result.Workitem
+	return renderer.WriteTable([]string{"ID", "TITLE", "STATUS"}, [][]string{{item.ID, item.Title, item.Status}})
+}
+
+func (o Options) workitemUseCase() (WorkitemUseCase, error) {
+	if o.WorkitemUseCase != nil {
+		return o.WorkitemUseCase, nil
+	}
+	return nil, fmt.Errorf("workitem service is not configured")
+}

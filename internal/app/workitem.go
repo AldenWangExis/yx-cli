@@ -74,6 +74,14 @@ type WorkitemUseCase struct {
 	safety         safety.Environment
 }
 
+type ErrMissingRepoProjectMapping struct {
+	Repo string
+}
+
+func (e ErrMissingRepoProjectMapping) Error() string {
+	return fmt.Sprintf("repo %q is not mapped to a project; run yx config set repo.%s.project <project-id>", e.Repo, e.Repo)
+}
+
 func NewWorkitemUseCase(projects ProjectService, workitems WorkitemService, repoProjectMap map[string]string, safetyEnv safety.Environment) *WorkitemUseCase {
 	if repoProjectMap == nil {
 		repoProjectMap = map[string]string{}
@@ -95,7 +103,7 @@ func (u *WorkitemUseCase) ListWorkitems(ctx context.Context, input WorkitemListI
 	if projectID == "" && input.Repo != "" {
 		mapped, ok := u.repoProjectMap[input.Repo]
 		if !ok {
-			return nil, fmt.Errorf("repo %q is not mapped to a project; run yx config set repo.%s.project <project-id>", input.Repo, input.Repo)
+			return nil, ErrMissingRepoProjectMapping{Repo: input.Repo}
 		}
 		projectID = mapped
 	}

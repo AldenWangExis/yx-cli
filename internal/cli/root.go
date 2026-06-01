@@ -28,6 +28,9 @@ func NewRootCommandWithOptions(opts Options) *cobra.Command {
 	cmd.AddCommand(newRepoCommand(opts))
 	cmd.AddCommand(newMergeRequestCommand(opts, "mr"))
 	cmd.AddCommand(newMergeRequestCommand(opts, "pr"))
+	cmd.AddCommand(newProjectCommand(opts))
+	cmd.AddCommand(newWorkitemCommand(opts, "workitem"))
+	cmd.AddCommand(newWorkitemCommand(opts, "issue"))
 
 	return cmd
 }
