@@ -89,10 +89,11 @@ jobs:
       - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/* --clobber
+          if gh release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber --repo "$GH_REPO"
           else
-            gh release create "$TAG" dist/* --title "$TAG" --notes "Release $TAG"
+            gh release create "$TAG" dist/* --title "$TAG" --notes "Release $TAG" --repo "$GH_REPO"
           fi
