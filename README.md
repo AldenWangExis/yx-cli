@@ -12,7 +12,7 @@ go build -o yx ./cmd/yx
 ## Configure
 
 ```bash
-yx config set profiles.default.domain https://devops.aliyun.com
+yx config set profiles.default.domain https://openapi-rdc.aliyuncs.com
 yx config set profiles.default.organization 68086322e3a71588779435e0
 yx config set profiles.default.region center
 yx config use default

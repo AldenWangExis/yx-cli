@@ -32,7 +32,7 @@ func NewClient(config ClientConfig) *Client {
 		httpClient = http.DefaultClient
 	}
 	return &Client{
-		baseURL:        strings.TrimRight(config.BaseURL, "/"),
+		baseURL:        NormalizeBaseURL(config.BaseURL),
 		token:          config.Token,
 		organizationID: config.OrganizationID,
 		region:         config.Region,
