@@ -253,19 +253,22 @@ TDD：
 
 ## M2：代码库命令
 
-目标：完成 Codeup repository 查询和 clone 的用户路径，并建立第一个 Yunxiao adapter 样板。
+目标：完成 Codeup repository 查询、创建、分支/提交/文件查看和 clone 的用户路径，并建立第一个 Yunxiao adapter 样板。
 
 ### M2.1 repo port 与 app use case
 
 范围：
 
 - 定义 repository service port。
-- 实现 `ListRepositories`、`GetRepository`、`CloneRepository` use case。
+- 实现 `ListRepositories`、`GetRepository`、`CreateRepository`、`CloneRepository` use case。
+- 实现 `ListBranches`、`SyncBranch`、`ListCommits`、`GetFile` use case。
 - Git clone 通过 `gitx` port 抽象，不直接在 app 层执行命令。
+- 远端分支同步定义为从 source/ref 创建 target 分支，不覆盖已有分支。
 
 TDD：
 
 - Red：写 app use case 测试，使用 fake repository service 和 fake git runner。
+- Red：补仓库创建、分支、提交、文件读取用例，覆盖 dry-run 不写远端。
 - Green：实现 use case。
 - Refactor：统一 repo identifier 解析。
 
@@ -276,6 +279,8 @@ TDD：
 - clone 失败返回可读错误。
 - clone 不得使用 repository list projection 直接驱动，必须使用 detail/full shape 或显式 clone URL。
 - git runner 的 argv 和输出不得包含 PAT。
+- `repo create`、`repo branch sync` 支持 `--dry-run` 和 `--yes`。
+- `repo file view` 默认输出文件内容；`--json` 输出文件元数据和内容。
 
 ### M2.2 repo CLI contract
 
@@ -283,11 +288,15 @@ TDD：
 
 - 实现 `yx repo list`。
 - 实现 `yx repo view <repo>`。
+- 实现 `yx repo create --name <name> [--path <path>] [--visibility <visibility>] [--readme-type <type>]`。
 - 实现 `yx repo clone <repo>`。
+- 实现 `yx repo branch list <repo>` 和 `yx repo branch sync <repo> --source <ref> --target <branch>`。
+- 实现 `yx repo commit list <repo> [--ref <ref>]`。
+- 实现 `yx repo file view <repo> <path> [--ref <ref>]`。
 
 TDD：
 
-- Red：为三个命令写 CLI contract test。
+- Red：为 repo 查询、创建、clone、分支、提交、文件命令写 CLI contract test。
 - Green：接入 app use case fake。
 - Refactor：统一 table/JSON 输出模型。
 
@@ -296,13 +305,15 @@ TDD：
 - list/detail 支持 `--json`。
 - 缺少 repo 参数时返回非零退出码。
 - clone 命令测试不执行真实 git。
+- 写操作命令非 dry-run 时必须经过 app safety 决策。
 
 ### M2.3 Codeup repository adapter
 
 范围：
 
 - 实现 Yunxiao repository adapter。
-- 覆盖认证 header、分页、成功响应、错误响应。
+- 实现 Codeup OpenAPI 的仓库创建、分支列表/创建、提交列表、文件读取。
+- 覆盖认证 header、分页、成功响应、错误响应和 base64 文件内容解码。
 
 TDD：
 

@@ -32,7 +32,12 @@ Paste a Yunxiao personal access token when prompted. Tokens are stored outside `
 ```bash
 yx repo list
 yx repo view <repo>
+yx repo create --name demo --path demo --visibility private --yes
 yx repo clone <repo> [destination]
+yx repo branch list <repo>
+yx repo branch sync <repo> --source master --target feat/a --dry-run
+yx repo commit list <repo> --ref master
+yx repo file view <repo> test.py --ref master
 ```
 
 ## Merge Requests
