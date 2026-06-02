@@ -79,6 +79,9 @@ func TestAuthStatusLoginLogoutUseProvider(t *testing.T) {
 	if !strings.Contains(stdout, "Yunxiao personal access token") {
 		t.Fatalf("expected login prompt, got stdout:\n%s", stdout)
 	}
+	if !strings.Contains(stdout, "Yunxiao personal access token:\n  https://account-devops.aliyun.com/settings/personalAccessToken\nToken: ") {
+		t.Fatalf("expected token prompt to put reference URL on its own line, got stdout:\n%s", stdout)
+	}
 	if !strings.Contains(stdout, "✓ Logged in profile default using fake token store") {
 		t.Fatalf("expected explicit login success, got stdout:\n%s", stdout)
 	}
@@ -143,10 +146,8 @@ func TestAuthLoginStoresOptionalServiceConnection(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"Yunxiao personal access token",
-		"https://account-devops.aliyun.com/settings/personalAccessToken",
-		"Codeup service connection ID",
-		"https://flow.aliyun.com/setting/service-connection",
+		"Yunxiao personal access token:\n  https://account-devops.aliyun.com/settings/personalAccessToken\nToken: ",
+		"Codeup service connection ID (optional):\n  https://flow.aliyun.com/setting/service-connection\nService connection ID: ",
 		"stored Codeup service connection for profile default",
 		"✓ Logged in profile default using fake token store",
 	} {

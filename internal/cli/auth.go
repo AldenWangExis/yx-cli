@@ -167,7 +167,7 @@ func newAuthLoginCommand(opts Options) *cobra.Command {
 				return err
 			}
 			reader := bufio.NewReader(cmd.InOrStdin())
-			fmt.Fprintf(cmd.OutOrStdout(), "Yunxiao personal access token (%s): ", yunxiaoPATURL)
+			fmt.Fprintf(cmd.OutOrStdout(), "Yunxiao personal access token:\n  %s\nToken: ", yunxiaoPATURL)
 			token, err := reader.ReadString('\n')
 			if err != nil && !errors.Is(err, io.EOF) {
 				return fmt.Errorf("read token: %w", err)
@@ -180,7 +180,7 @@ func newAuthLoginCommand(opts Options) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			serviceConnection, err := readOptionalLine(reader, cmd.OutOrStdout(), fmt.Sprintf("Codeup service connection ID (optional, %s): ", yunxiaoServiceConnectionURL))
+			serviceConnection, err := readOptionalLine(reader, cmd.OutOrStdout(), fmt.Sprintf("Codeup service connection ID (optional):\n  %s\nService connection ID: ", yunxiaoServiceConnectionURL))
 			if err != nil {
 				return err
 			}
