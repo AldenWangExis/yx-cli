@@ -7,11 +7,7 @@ import (
 
 	"github.com/AldenWangExis/yx-cli/internal/app"
 	"github.com/AldenWangExis/yx-cli/internal/config"
-	"github.com/AldenWangExis/yx-cli/internal/gitx"
 	"github.com/AldenWangExis/yx-cli/internal/output"
-	"github.com/AldenWangExis/yx-cli/internal/safety"
-	"github.com/AldenWangExis/yx-cli/internal/yunxiao"
-	"github.com/AldenWangExis/yx-cli/internal/yunxiao/codeup"
 	"github.com/spf13/cobra"
 )
 
@@ -409,19 +405,11 @@ func (o Options) repoUseCase(ctx Context) (RepositoryUseCase, error) {
 	if o.RepoUseCase != nil {
 		return o.RepoUseCase, nil
 	}
-	runtime, err := o.resolveRuntimeProfile(ctx)
+	services, err := o.resolveRuntimeServices(ctx)
 	if err != nil {
 		return nil, err
 	}
-	repositories := codeup.NewRepositoryAdapter(yunxiao.ClientConfig{
-		BaseURL:        runtime.Profile.Domain,
-		Token:          runtime.Token,
-		OrganizationID: runtime.Profile.Organization,
-		Region:         runtime.Profile.Region,
-	})
-	return app.NewRepoUseCase(repositories, gitx.NewRunner(), safety.Environment{
-		ConfirmWrites: runtime.Profile.Safety.ConfirmWrites,
-	}), nil
+	return services.repoUseCase(), nil
 }
 
 type repoCurrentRuntimeContext struct {
@@ -446,22 +434,11 @@ func (o Options) repoCurrentResolver(ctx Context) (RepositoryCurrentResolver, re
 			Organization: ctx.Organization,
 		}, nil
 	}
-	runtime, err := o.resolveRuntimeProfile(ctx)
+	services, err := o.resolveRuntimeServices(ctx)
 	if err != nil {
 		return nil, repoCurrentRuntimeContext{}, err
 	}
-	repositories := codeup.NewRepositoryAdapter(yunxiao.ClientConfig{
-		BaseURL:        runtime.Profile.Domain,
-		Token:          runtime.Token,
-		OrganizationID: runtime.Profile.Organization,
-		Region:         runtime.Profile.Region,
-	})
-	return app.NewRepositoryIdentityResolver(repositories, gitx.NewRunner(), configRepositoryIdentityCache{store: runtime.Store}), repoCurrentRuntimeContext{
-		ProfileName:  runtime.Name,
-		Domain:       yunxiao.NormalizeBaseURL(runtime.Profile.Domain),
-		Organization: runtime.Profile.Organization,
-		Region:       runtime.Profile.Region,
-	}, nil
+	return services.repoCurrentResolver(), services.repoCurrentContext(), nil
 }
 
 type configRepositoryIdentityCache struct {

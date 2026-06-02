@@ -7,9 +7,6 @@ import (
 
 	"github.com/AldenWangExis/yx-cli/internal/app"
 	"github.com/AldenWangExis/yx-cli/internal/output"
-	"github.com/AldenWangExis/yx-cli/internal/safety"
-	"github.com/AldenWangExis/yx-cli/internal/yunxiao"
-	"github.com/AldenWangExis/yx-cli/internal/yunxiao/flow"
 	"github.com/spf13/cobra"
 )
 
@@ -270,15 +267,9 @@ func (o Options) pipelineUseCase(ctx Context) (PipelineUseCase, error) {
 	if o.PipelineUseCase != nil {
 		return o.PipelineUseCase, nil
 	}
-	runtime, err := o.resolveRuntimeProfile(ctx)
+	services, err := o.resolveRuntimeServices(ctx)
 	if err != nil {
 		return nil, err
 	}
-	adapter := flow.NewAdapter(yunxiao.ClientConfig{
-		BaseURL:        runtime.Profile.Domain,
-		Token:          runtime.Token,
-		OrganizationID: runtime.Profile.Organization,
-		Region:         runtime.Profile.Region,
-	})
-	return app.NewPipelineUseCase(adapter, safety.Environment{ConfirmWrites: runtime.Profile.Safety.ConfirmWrites}), nil
+	return services.pipelineUseCase(), nil
 }
