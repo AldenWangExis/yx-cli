@@ -86,6 +86,18 @@ func TestProjectAndWorkitemCommands(t *testing.T) {
 	if !workitems.updateInput.DryRun || workitems.updateInput.ID != "w1" || workitems.updateInput.Status != "done" {
 		t.Fatalf("unexpected update input: %+v", workitems.updateInput)
 	}
+
+	stdout, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts),
+		"issue", "delete", "w1", "--dry-run")
+	if err != nil {
+		t.Fatalf("expected issue delete dry-run to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	if !strings.Contains(stdout, "dry-run: delete workitem w1") {
+		t.Fatalf("expected dry-run delete output, got:\n%s", stdout)
+	}
+	if !workitems.deleteInput.DryRun || workitems.deleteInput.ID != "w1" {
+		t.Fatalf("unexpected delete input: %+v", workitems.deleteInput)
+	}
 }
 
 func TestIssueAliasUsesWorkitemUseCase(t *testing.T) {
@@ -173,10 +185,12 @@ type fakeWorkitemUseCase struct {
 	created            app.WorkitemMutationResult
 	projectCreated     app.ProjectMutationResult
 	updated            app.WorkitemMutationResult
+	deleted            app.WorkitemMutationResult
 	listInput          app.WorkitemListInput
 	projectCreateInput app.CreateProjectInput
 	createInput        app.CreateWorkitemInput
 	updateInput        app.UpdateWorkitemInput
+	deleteInput        app.DeleteWorkitemInput
 }
 
 func (u *fakeWorkitemUseCase) ListProjects(ctx context.Context) ([]app.Project, error) {
@@ -210,6 +224,14 @@ func (u *fakeWorkitemUseCase) UpdateWorkitem(ctx context.Context, input app.Upda
 	return u.updated, nil
 }
 
+func (u *fakeWorkitemUseCase) DeleteWorkitem(ctx context.Context, input app.DeleteWorkitemInput) (app.WorkitemMutationResult, error) {
+	u.deleteInput = input
+	if u.deleted.Summary == "" {
+		return app.WorkitemMutationResult{DryRun: input.DryRun, Summary: "delete workitem " + input.ID}, nil
+	}
+	return u.deleted, nil
+}
+
 type failingMappingWorkitemUseCase struct{}
 
 func (u *failingMappingWorkitemUseCase) ListProjects(ctx context.Context) ([]app.Project, error) {
@@ -233,5 +255,9 @@ func (u *failingMappingWorkitemUseCase) CreateWorkitem(ctx context.Context, inpu
 }
 
 func (u *failingMappingWorkitemUseCase) UpdateWorkitem(ctx context.Context, input app.UpdateWorkitemInput) (app.WorkitemMutationResult, error) {
+	return app.WorkitemMutationResult{}, nil
+}
+
+func (u *failingMappingWorkitemUseCase) DeleteWorkitem(ctx context.Context, input app.DeleteWorkitemInput) (app.WorkitemMutationResult, error) {
 	return app.WorkitemMutationResult{}, nil
 }

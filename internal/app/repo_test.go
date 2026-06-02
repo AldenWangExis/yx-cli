@@ -65,7 +65,7 @@ func TestRepoUseCaseCreatesRepositoryWithSafety(t *testing.T) {
 	service := &fakeRepositoryService{
 		created: RepositoryDetail{ID: "2", Name: "demo", Path: "org/demo"},
 	}
-	useCase := NewRepoUseCase(service, &fakeGitRunner{}, safety.Environment{})
+	useCase := NewRepoUseCase(service, &fakeGitRunner{}, safety.Environment{ConfirmWrites: true, IsTerminal: false})
 
 	result, err := useCase.CreateRepository(context.Background(), CreateRepositoryInput{
 		Name:       "demo",
@@ -157,6 +157,38 @@ func TestRepoUseCaseSyncBranchCreatesBranchFromSource(t *testing.T) {
 	}
 }
 
+func TestRepoUseCaseDeleteRepositoryHonorsSafety(t *testing.T) {
+	service := &fakeRepositoryService{}
+	useCase := NewRepoUseCase(service, &fakeGitRunner{}, safety.Environment{ConfirmWrites: true, IsTerminal: false})
+
+	result, err := useCase.DeleteRepository(context.Background(), DeleteRepositoryInput{Repo: "repo-1", DryRun: true})
+	if err != nil {
+		t.Fatalf("expected delete dry-run to succeed, got: %v", err)
+	}
+	if !result.DryRun || result.Summary != "delete repository repo-1" {
+		t.Fatalf("unexpected dry-run result: %+v", result)
+	}
+	if service.deleteCalled {
+		t.Fatal("expected dry-run not to call delete")
+	}
+
+	_, err = useCase.DeleteRepository(context.Background(), DeleteRepositoryInput{Repo: "repo-1"})
+	if err == nil {
+		t.Fatal("expected delete without yes or dry-run to require confirmation")
+	}
+	if service.deleteCalled {
+		t.Fatal("expected delete not to be called without confirmation")
+	}
+
+	result, err = useCase.DeleteRepository(context.Background(), DeleteRepositoryInput{Repo: "repo-1", Yes: true})
+	if err != nil {
+		t.Fatalf("expected delete with yes to succeed, got: %v", err)
+	}
+	if result.Repository.ID != "repo-1" || service.deletedRepo != "repo-1" {
+		t.Fatalf("unexpected delete result=%+v deleted=%q", result, service.deletedRepo)
+	}
+}
+
 type fakeRepositoryService struct {
 	list         []RepositoryListItem
 	detail       RepositoryDetail
@@ -170,6 +202,8 @@ type fakeRepositoryService struct {
 	listCalls    int
 	getCalled    bool
 	createCalled bool
+	deleteCalled bool
+	deletedRepo  string
 	err          error
 }
 
@@ -210,6 +244,12 @@ func (s *fakeRepositoryService) GetFile(ctx context.Context, input FileGetInput)
 func (s *fakeRepositoryService) SyncBranch(ctx context.Context, input BranchSyncInput) (BranchListItem, error) {
 	s.syncInput = input
 	return s.synced, s.err
+}
+
+func (s *fakeRepositoryService) DeleteRepository(ctx context.Context, repo string) (RepositoryDetail, error) {
+	s.deleteCalled = true
+	s.deletedRepo = repo
+	return RepositoryDetail{ID: repo}, s.err
 }
 
 type fakeGitRunner struct {

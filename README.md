@@ -71,6 +71,7 @@ yx repo list
 yx repo view <repo>
 yx repo create --name demo --path demo --visibility private --yes
 yx repo clone <repo> [destination]
+yx repo delete <repo> --dry-run
 yx repo branch list <repo>
 yx repo branch sync <repo> --source master --target feat/a --dry-run
 yx repo commit list <repo> --ref master
@@ -84,6 +85,7 @@ yx mr list --repo <repo>
 yx mr view <mr-id> --repo <repo>
 yx mr create --repo <repo> --source feat/a --target main --title "Add feature" --dry-run
 yx mr merge <mr-id> --repo <repo> --yes
+yx mr close <mr-id> --repo <repo> --dry-run
 ```
 
 `yx pr ...` is an alias for `yx mr ...`.
@@ -96,6 +98,7 @@ yx workitem list --project <project-id>
 yx workitem view <workitem-id>
 yx workitem create --project <project-id> --type task --title "Task title" --dry-run
 yx workitem update <workitem-id> --status done --assignee <user-id> --dry-run
+yx workitem delete <workitem-id> --dry-run
 ```
 
 `yx issue ...` is an alias for `yx workitem ...`. Repository-based issue commands require an explicit repo-to-project mapping:

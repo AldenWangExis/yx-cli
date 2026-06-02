@@ -16,6 +16,7 @@ type WorkitemUseCase interface {
 	GetWorkitem(ctx context.Context, id string) (app.WorkitemDetail, error)
 	CreateWorkitem(ctx context.Context, input app.CreateWorkitemInput) (app.WorkitemMutationResult, error)
 	UpdateWorkitem(ctx context.Context, input app.UpdateWorkitemInput) (app.WorkitemMutationResult, error)
+	DeleteWorkitem(ctx context.Context, input app.DeleteWorkitemInput) (app.WorkitemMutationResult, error)
 }
 
 func newProjectCommand(opts Options) *cobra.Command {
@@ -86,12 +87,13 @@ func newWorkitemCommand(opts Options, use string) *cobra.Command {
 		Use:     use,
 		Short:   "Manage Yunxiao work items",
 		Long:    "Manage Yunxiao work items. The issue command is an alias over workitem.",
-		Example: fmt.Sprintf("  yx %s list\n  yx %s list --project <project-id>\n  yx %s view <workitem-id>\n  yx %s create --project <project-id> --type Task --title \"Do work\" --dry-run\n  yx %s update <workitem-id> --status done --dry-run", use, use, use, use, use),
+		Example: fmt.Sprintf("  yx %s list\n  yx %s list --project <project-id>\n  yx %s view <workitem-id>\n  yx %s create --project <project-id> --type Task --title \"Do work\" --dry-run\n  yx %s update <workitem-id> --status done --dry-run\n  yx %s delete <workitem-id> --dry-run", use, use, use, use, use, use),
 	}
 	cmd.AddCommand(newWorkitemListCommand(opts))
 	cmd.AddCommand(newWorkitemViewCommand(opts))
 	cmd.AddCommand(newWorkitemCreateCommand(opts))
 	cmd.AddCommand(newWorkitemUpdateCommand(opts))
+	cmd.AddCommand(newWorkitemDeleteCommand(opts))
 	return cmd
 }
 
@@ -208,6 +210,31 @@ func newWorkitemUpdateCommand(opts Options) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&input.Status, "status", "", "new status")
 	cmd.Flags().StringVar(&input.Assignee, "assignee", "", "assignee")
+	cmd.Flags().BoolVar(&input.DryRun, "dry-run", false, "show intended operation without writing")
+	cmd.Flags().BoolVar(&input.Yes, "yes", false, "skip confirmation")
+	return cmd
+}
+
+func newWorkitemDeleteCommand(opts Options) *cobra.Command {
+	var input app.DeleteWorkitemInput
+	cmd := &cobra.Command{
+		Use:     "delete <workitem-id>",
+		Short:   "Delete a work item",
+		Example: "  yx workitem delete <workitem-id> --dry-run\n  yx issue delete <workitem-id> --yes",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			input.ID = args[0]
+			useCase, err := opts.workitemUseCase(ContextFromCommand(cmd))
+			if err != nil {
+				return err
+			}
+			result, err := useCase.DeleteWorkitem(cmd.Context(), input)
+			if err != nil {
+				return err
+			}
+			return renderWorkitemMutation(cmd, result)
+		},
+	}
 	cmd.Flags().BoolVar(&input.DryRun, "dry-run", false, "show intended operation without writing")
 	cmd.Flags().BoolVar(&input.Yes, "yes", false, "skip confirmation")
 	return cmd

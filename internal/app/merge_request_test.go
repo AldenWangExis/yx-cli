@@ -92,6 +92,59 @@ func TestMergeRequestUseCaseMergeWithYesMutatesOnce(t *testing.T) {
 	}
 }
 
+func TestMergeRequestUseCaseCloseRequiresConfirmation(t *testing.T) {
+	service := &fakeMergeRequestService{}
+	useCase := NewMergeRequestUseCase(service, safety.Environment{ConfirmWrites: true, IsTerminal: false})
+
+	result, err := useCase.CloseMergeRequest(context.Background(), CloseMergeRequestInput{
+		Repo:   "repo-1",
+		ID:     "11",
+		DryRun: true,
+	})
+	if err != nil {
+		t.Fatalf("expected close dry-run to succeed, got: %v", err)
+	}
+	if !result.DryRun || result.Summary != "close merge request 11 in repo-1" {
+		t.Fatalf("unexpected dry-run result: %+v", result)
+	}
+	if service.closeCalled {
+		t.Fatal("expected dry-run not to call close")
+	}
+
+	_, err = useCase.CloseMergeRequest(context.Background(), CloseMergeRequestInput{
+		Repo: "repo-1",
+		ID:   "11",
+	})
+	if err == nil {
+		t.Fatal("expected close to require confirmation")
+	}
+	if service.closeCalled {
+		t.Fatal("expected close not to be called without confirmation")
+	}
+}
+
+func TestMergeRequestUseCaseCloseWithYesMutatesOnce(t *testing.T) {
+	service := &fakeMergeRequestService{
+		closed: MergeRequestDetail{ID: "11", Title: "Add feature", State: "closed"},
+	}
+	useCase := NewMergeRequestUseCase(service, safety.Environment{ConfirmWrites: true, IsTerminal: false})
+
+	result, err := useCase.CloseMergeRequest(context.Background(), CloseMergeRequestInput{
+		Repo: "repo-1",
+		ID:   "11",
+		Yes:  true,
+	})
+	if err != nil {
+		t.Fatalf("expected close with yes to succeed, got: %v", err)
+	}
+	if result.MergeRequest.State != "closed" {
+		t.Fatalf("expected closed state, got %q", result.MergeRequest.State)
+	}
+	if service.closeCalls != 1 {
+		t.Fatalf("expected one close call, got %d", service.closeCalls)
+	}
+}
+
 func TestMergeRequestUseCaseInteractiveConfirmation(t *testing.T) {
 	service := &fakeMergeRequestService{
 		created: MergeRequestDetail{ID: "1", Title: "Add feature", State: "opened"},
@@ -126,9 +179,12 @@ type fakeMergeRequestService struct {
 	detail       MergeRequestDetail
 	created      MergeRequestDetail
 	merged       MergeRequestDetail
+	closed       MergeRequestDetail
 	createCalled bool
 	mergeCalled  bool
+	closeCalled  bool
 	mergeCalls   int
+	closeCalls   int
 }
 
 func (s *fakeMergeRequestService) ListMergeRequests(ctx context.Context, repo string) ([]MergeRequestListItem, error) {
@@ -154,4 +210,13 @@ func (s *fakeMergeRequestService) MergeMergeRequest(ctx context.Context, repo, i
 		return MergeRequestDetail{ID: id, State: "merged"}, nil
 	}
 	return s.merged, nil
+}
+
+func (s *fakeMergeRequestService) CloseMergeRequest(ctx context.Context, repo, id string) (MergeRequestDetail, error) {
+	s.closeCalled = true
+	s.closeCalls++
+	if s.closed.ID == "" {
+		return MergeRequestDetail{ID: id, State: "closed"}, nil
+	}
+	return s.closed, nil
 }

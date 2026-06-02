@@ -16,6 +16,7 @@ type RepositoryUseCase interface {
 	GetRepository(ctx context.Context, id string) (app.RepositoryDetail, error)
 	CreateRepository(ctx context.Context, input app.CreateRepositoryInput) (app.RepositoryMutationResult, error)
 	CloneRepository(ctx context.Context, id, destination string) error
+	DeleteRepository(ctx context.Context, input app.DeleteRepositoryInput) (app.RepositoryMutationResult, error)
 	ListBranches(ctx context.Context, repo string) ([]app.BranchListItem, error)
 	SyncBranch(ctx context.Context, input app.BranchSyncInput) (app.BranchMutationResult, error)
 	ListCommits(ctx context.Context, input app.CommitListInput) ([]app.CommitListItem, error)
@@ -31,16 +32,49 @@ func newRepoCommand(opts Options) *cobra.Command {
 		Use:     "repo",
 		Short:   "Manage Codeup repositories",
 		Long:    "Manage Codeup repositories, branches, commits, files, and clones.",
-		Example: "  yx repo list\n  yx repo current\n  yx repo view\n  yx repo view <repo>\n  yx repo create --name demo --path demo --visibility private --yes\n  yx repo branch list\n  yx repo commit list --ref master\n  yx repo file view test.py --ref master",
+		Example: "  yx repo list\n  yx repo current\n  yx repo view\n  yx repo view <repo>\n  yx repo create --name demo --path demo --visibility private --yes\n  yx repo delete <repo> --dry-run\n  yx repo branch list\n  yx repo commit list --ref master\n  yx repo file view test.py --ref master",
 	}
 	cmd.AddCommand(newRepoListCommand(opts))
 	cmd.AddCommand(newRepoCurrentCommand(opts))
 	cmd.AddCommand(newRepoViewCommand(opts))
 	cmd.AddCommand(newRepoCreateCommand(opts))
 	cmd.AddCommand(newRepoCloneCommand(opts))
+	cmd.AddCommand(newRepoDeleteCommand(opts))
 	cmd.AddCommand(newRepoBranchCommand(opts))
 	cmd.AddCommand(newRepoCommitCommand(opts))
 	cmd.AddCommand(newRepoFileCommand(opts))
+	return cmd
+}
+
+func newRepoDeleteCommand(opts Options) *cobra.Command {
+	var input app.DeleteRepositoryInput
+	cmd := &cobra.Command{
+		Use:     "delete [repo]",
+		Short:   "Delete a Codeup repository",
+		Example: "  yx repo delete --dry-run\n  yx repo delete 6925595 --yes",
+		Args:    cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				input.Repo = args[0]
+			}
+			var err error
+			input.Repo, err = resolveRepositoryID(cmd, opts, input.Repo)
+			if err != nil {
+				return err
+			}
+			useCase, err := opts.repoUseCase(ContextFromCommand(cmd))
+			if err != nil {
+				return err
+			}
+			result, err := useCase.DeleteRepository(cmd.Context(), input)
+			if err != nil {
+				return err
+			}
+			return renderRepositoryMutation(cmd, result)
+		},
+	}
+	cmd.Flags().BoolVar(&input.DryRun, "dry-run", false, "show intended operation without writing")
+	cmd.Flags().BoolVar(&input.Yes, "yes", false, "skip confirmation")
 	return cmd
 }
 

@@ -76,6 +76,25 @@ func (a *RepositoryAdapter) CreateRepository(ctx context.Context, input app.Crea
 	return decodeRepository(data)
 }
 
+func (a *RepositoryAdapter) DeleteRepository(ctx context.Context, repo string) (app.RepositoryDetail, error) {
+	paths := newCodeupPaths(a.client)
+	data, err := a.client.DoJSON(ctx, http.MethodDelete, paths.repositoryPath(repo), nil, nil)
+	if err != nil {
+		return app.RepositoryDetail{}, err
+	}
+	if len(data) == 0 {
+		return app.RepositoryDetail{ID: repo}, nil
+	}
+	deleted, err := decodeRepository(data)
+	if err != nil {
+		return app.RepositoryDetail{}, err
+	}
+	if deleted.ID == "" {
+		deleted.ID = repo
+	}
+	return deleted, nil
+}
+
 func (a *RepositoryAdapter) ListBranches(ctx context.Context, repo string) ([]app.BranchListItem, error) {
 	paths := newCodeupPaths(a.client)
 	data, err := a.client.DoJSON(ctx, http.MethodGet, paths.repositoryBranchesPath(repo), nil, nil)

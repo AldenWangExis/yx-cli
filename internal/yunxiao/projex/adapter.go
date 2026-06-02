@@ -119,3 +119,22 @@ func (a *Adapter) UpdateWorkitem(ctx context.Context, input app.UpdateWorkitemIn
 	}
 	return decodeWorkitem(data)
 }
+
+func (a *Adapter) DeleteWorkitem(ctx context.Context, id string) (app.WorkitemDetail, error) {
+	paths := newProjexPaths(a.client)
+	data, err := a.client.DoJSON(ctx, http.MethodDelete, paths.workitemPath(id), nil, nil)
+	if err != nil {
+		return app.WorkitemDetail{}, err
+	}
+	if len(data) == 0 {
+		return app.WorkitemDetail{ID: id}, nil
+	}
+	detail, err := decodeWorkitem(data)
+	if err != nil {
+		return app.WorkitemDetail{}, err
+	}
+	if detail.ID == "" {
+		detail.ID = id
+	}
+	return detail, nil
+}

@@ -25,6 +25,9 @@ func TestCodeupPathsShareCenterOrganizationRootAndEscapeIdentifiers(t *testing.T
 	if got, want := paths.changeRequestPath("group/demo", "mr/1"), "/oapi/v1/codeup/organizations/org%2F1/repositories/group%2Fdemo/changeRequests/mr%2F1"; got != want {
 		t.Fatalf("change request path = %q, want %q", got, want)
 	}
+	if got, want := paths.changeRequestClosePath("group/demo", "mr/1"), "/oapi/v1/codeup/organizations/org%2F1/repositories/group%2Fdemo/changeRequests/mr%2F1/close"; got != want {
+		t.Fatalf("change request close path = %q, want %q", got, want)
+	}
 }
 
 func TestCodeupPathsUseRegionRoot(t *testing.T) {
@@ -44,5 +47,8 @@ func TestCodeupPathsUseRegionRoot(t *testing.T) {
 	}
 	if got, want := paths.changeRequestPath("group/demo", "mr/1"), "/oapi/v1/codeup/repositories/group%2Fdemo/changeRequests/mr%2F1"; got != want {
 		t.Fatalf("change request path = %q, want %q", got, want)
+	}
+	if got, want := paths.changeRequestClosePath("group/demo", "mr/1"), "/oapi/v1/codeup/repositories/group%2Fdemo/changeRequests/mr%2F1/close"; got != want {
+		t.Fatalf("change request close path = %q, want %q", got, want)
 	}
 }

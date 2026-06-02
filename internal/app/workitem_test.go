@@ -149,6 +149,38 @@ func TestWorkitemCreateAndUpdateDryRunDoNotMutate(t *testing.T) {
 	}
 }
 
+func TestWorkitemDeleteHonorsSafety(t *testing.T) {
+	workitems := &fakeWorkitemService{}
+	useCase := NewWorkitemUseCase(&fakeProjectService{}, workitems, nil, safety.Environment{ConfirmWrites: true, IsTerminal: false})
+
+	result, err := useCase.DeleteWorkitem(context.Background(), DeleteWorkitemInput{ID: "w1", DryRun: true})
+	if err != nil {
+		t.Fatalf("expected delete dry-run to succeed, got: %v", err)
+	}
+	if !result.DryRun || result.Summary != "delete workitem w1" {
+		t.Fatalf("unexpected dry-run result: %+v", result)
+	}
+	if workitems.deleteCalled {
+		t.Fatal("expected dry-run not to call delete")
+	}
+
+	_, err = useCase.DeleteWorkitem(context.Background(), DeleteWorkitemInput{ID: "w1"})
+	if err == nil {
+		t.Fatal("expected delete without yes or dry-run to require confirmation")
+	}
+	if workitems.deleteCalled {
+		t.Fatal("expected delete not to be called without confirmation")
+	}
+
+	result, err = useCase.DeleteWorkitem(context.Background(), DeleteWorkitemInput{ID: "w1", Yes: true})
+	if err != nil {
+		t.Fatalf("expected delete with yes to succeed, got: %v", err)
+	}
+	if result.Workitem.ID != "w1" {
+		t.Fatalf("unexpected delete result: %+v", result)
+	}
+}
+
 type fakeProjectService struct {
 	projects     []Project
 	templates    []ProjectTemplate
@@ -183,6 +215,7 @@ type fakeWorkitemService struct {
 	listCalled    bool
 	createCalled  bool
 	updateCalled  bool
+	deleteCalled  bool
 }
 
 func (s *fakeWorkitemService) ListWorkitems(ctx context.Context, projectID string) ([]WorkitemListItem, error) {
@@ -209,4 +242,9 @@ func (s *fakeWorkitemService) UpdateWorkitem(ctx context.Context, input UpdateWo
 		return WorkitemDetail{ID: input.ID, Status: input.Status, Assignee: input.Assignee}, nil
 	}
 	return s.updated, nil
+}
+
+func (s *fakeWorkitemService) DeleteWorkitem(ctx context.Context, id string) (WorkitemDetail, error) {
+	s.deleteCalled = true
+	return WorkitemDetail{ID: id}, nil
 }

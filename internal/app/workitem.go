@@ -68,6 +68,12 @@ type UpdateWorkitemInput struct {
 	Yes      bool
 }
 
+type DeleteWorkitemInput struct {
+	ID     string
+	DryRun bool
+	Yes    bool
+}
+
 type WorkitemMutationResult struct {
 	DryRun   bool           `json:"dryRun"`
 	Summary  string         `json:"summary,omitempty"`
@@ -91,6 +97,7 @@ type WorkitemService interface {
 	GetWorkitem(ctx context.Context, id string) (WorkitemDetail, error)
 	CreateWorkitem(ctx context.Context, input CreateWorkitemInput) (WorkitemDetail, error)
 	UpdateWorkitem(ctx context.Context, input UpdateWorkitemInput) (WorkitemDetail, error)
+	DeleteWorkitem(ctx context.Context, id string) (WorkitemDetail, error)
 }
 
 type WorkitemUseCase struct {
@@ -238,6 +245,28 @@ func (u *WorkitemUseCase) UpdateWorkitem(ctx context.Context, input UpdateWorkit
 	detail, err := u.workitems.UpdateWorkitem(ctx, input)
 	if err != nil {
 		return WorkitemMutationResult{}, err
+	}
+	return WorkitemMutationResult{Workitem: detail}, nil
+}
+
+func (u *WorkitemUseCase) DeleteWorkitem(ctx context.Context, input DeleteWorkitemInput) (WorkitemMutationResult, error) {
+	if input.ID == "" {
+		return WorkitemMutationResult{}, fmt.Errorf("workitem id is required")
+	}
+	summary := fmt.Sprintf("delete workitem %s", input.ID)
+	decision, err := safety.Decide(safety.Request{Summary: summary, DryRun: input.DryRun, Yes: input.Yes}, u.safety)
+	if err != nil {
+		return WorkitemMutationResult{}, err
+	}
+	if decision.DryRun {
+		return WorkitemMutationResult{DryRun: true, Summary: summary}, nil
+	}
+	detail, err := u.workitems.DeleteWorkitem(ctx, input.ID)
+	if err != nil {
+		return WorkitemMutationResult{}, err
+	}
+	if detail.ID == "" {
+		detail.ID = input.ID
 	}
 	return WorkitemMutationResult{Workitem: detail}, nil
 }

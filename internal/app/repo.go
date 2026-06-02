@@ -32,6 +32,12 @@ type CreateRepositoryInput struct {
 	Yes         bool
 }
 
+type DeleteRepositoryInput struct {
+	Repo   string
+	DryRun bool
+	Yes    bool
+}
+
 type RepositoryMutationResult struct {
 	DryRun     bool             `json:"dryRun"`
 	Summary    string           `json:"summary,omitempty"`
@@ -92,6 +98,7 @@ type RepositoryService interface {
 	ListRepositories(ctx context.Context) ([]RepositoryListItem, error)
 	GetRepository(ctx context.Context, id string) (RepositoryDetail, error)
 	CreateRepository(ctx context.Context, input CreateRepositoryInput) (RepositoryDetail, error)
+	DeleteRepository(ctx context.Context, repo string) (RepositoryDetail, error)
 	ListBranches(ctx context.Context, repo string) ([]BranchListItem, error)
 	SyncBranch(ctx context.Context, input BranchSyncInput) (BranchListItem, error)
 	ListCommits(ctx context.Context, input CommitListInput) ([]CommitListItem, error)
@@ -150,6 +157,28 @@ func (u *RepoUseCase) CreateRepository(ctx context.Context, input CreateReposito
 	}
 	if repo.Path == "" {
 		repo.Path = input.Path
+	}
+	return RepositoryMutationResult{Repository: repo}, nil
+}
+
+func (u *RepoUseCase) DeleteRepository(ctx context.Context, input DeleteRepositoryInput) (RepositoryMutationResult, error) {
+	if input.Repo == "" {
+		return RepositoryMutationResult{}, fmt.Errorf("repo is required")
+	}
+	summary := fmt.Sprintf("delete repository %s", input.Repo)
+	decision, err := safety.Decide(safety.Request{Summary: summary, DryRun: input.DryRun, Yes: input.Yes}, u.safety)
+	if err != nil {
+		return RepositoryMutationResult{}, err
+	}
+	if decision.DryRun {
+		return RepositoryMutationResult{DryRun: true, Summary: summary}, nil
+	}
+	repo, err := u.repositories.DeleteRepository(ctx, input.Repo)
+	if err != nil {
+		return RepositoryMutationResult{}, err
+	}
+	if repo.ID == "" {
+		repo.ID = input.Repo
 	}
 	return RepositoryMutationResult{Repository: repo}, nil
 }

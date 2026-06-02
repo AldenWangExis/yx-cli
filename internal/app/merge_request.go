@@ -40,6 +40,13 @@ type MergeMergeRequestInput struct {
 	Yes    bool
 }
 
+type CloseMergeRequestInput struct {
+	Repo   string
+	ID     string
+	DryRun bool
+	Yes    bool
+}
+
 type MergeRequestMutationResult struct {
 	DryRun       bool               `json:"dryRun"`
 	Summary      string             `json:"summary,omitempty"`
@@ -51,6 +58,7 @@ type MergeRequestService interface {
 	GetMergeRequest(ctx context.Context, repo, id string) (MergeRequestDetail, error)
 	CreateMergeRequest(ctx context.Context, input CreateMergeRequestInput) (MergeRequestDetail, error)
 	MergeMergeRequest(ctx context.Context, repo, id string) (MergeRequestDetail, error)
+	CloseMergeRequest(ctx context.Context, repo, id string) (MergeRequestDetail, error)
 }
 
 type MergeRequestUseCase struct {
@@ -102,6 +110,25 @@ func (u *MergeRequestUseCase) MergeMergeRequest(ctx context.Context, input Merge
 		return MergeRequestMutationResult{DryRun: true, Summary: summary}, nil
 	}
 	detail, err := u.service.MergeMergeRequest(ctx, input.Repo, input.ID)
+	if err != nil {
+		return MergeRequestMutationResult{}, err
+	}
+	return MergeRequestMutationResult{MergeRequest: detail}, nil
+}
+
+func (u *MergeRequestUseCase) CloseMergeRequest(ctx context.Context, input CloseMergeRequestInput) (MergeRequestMutationResult, error) {
+	if input.Repo == "" || input.ID == "" {
+		return MergeRequestMutationResult{}, fmt.Errorf("repo and merge request id are required")
+	}
+	summary := fmt.Sprintf("close merge request %s in %s", input.ID, input.Repo)
+	decision, err := safety.Decide(safety.Request{Summary: summary, DryRun: input.DryRun, Yes: input.Yes}, u.safety)
+	if err != nil {
+		return MergeRequestMutationResult{}, err
+	}
+	if decision.DryRun {
+		return MergeRequestMutationResult{DryRun: true, Summary: summary}, nil
+	}
+	detail, err := u.service.CloseMergeRequest(ctx, input.Repo, input.ID)
 	if err != nil {
 		return MergeRequestMutationResult{}, err
 	}

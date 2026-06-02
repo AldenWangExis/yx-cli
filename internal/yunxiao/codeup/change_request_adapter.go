@@ -64,3 +64,15 @@ func (a *ChangeRequestAdapter) MergeMergeRequest(ctx context.Context, repo, id s
 	}
 	return decodeChangeRequest(data)
 }
+
+func (a *ChangeRequestAdapter) CloseMergeRequest(ctx context.Context, repo, id string) (app.MergeRequestDetail, error) {
+	paths := newCodeupPaths(a.client)
+	data, err := a.client.DoJSON(ctx, http.MethodPost, paths.changeRequestClosePath(repo, id), nil, []byte(`{}`))
+	if err != nil {
+		return app.MergeRequestDetail{}, err
+	}
+	if len(data) == 0 {
+		return app.MergeRequestDetail{ID: id, State: "closed"}, nil
+	}
+	return decodeChangeRequest(data)
+}
