@@ -6,8 +6,6 @@ import (
 	"os"
 
 	"github.com/AldenWangExis/yx-cli/internal/app"
-	"github.com/AldenWangExis/yx-cli/internal/auth"
-	"github.com/AldenWangExis/yx-cli/internal/config"
 	"github.com/AldenWangExis/yx-cli/internal/output"
 	"github.com/AldenWangExis/yx-cli/internal/safety"
 	"github.com/AldenWangExis/yx-cli/internal/yunxiao"
@@ -40,7 +38,7 @@ func newPipelineCommand(opts Options) *cobra.Command {
 
 func newPipelineListCommand(opts Options) *cobra.Command {
 	return &cobra.Command{Use: "list", Short: "List pipelines", Example: "  yx pipeline list\n  yx --json pipeline list", RunE: func(cmd *cobra.Command, args []string) error {
-		useCase, err := opts.pipelineUseCase()
+		useCase, err := opts.pipelineUseCase(ContextFromCommand(cmd))
 		if err != nil {
 			return err
 		}
@@ -62,7 +60,7 @@ func newPipelineListCommand(opts Options) *cobra.Command {
 
 func newPipelineViewCommand(opts Options) *cobra.Command {
 	return &cobra.Command{Use: "view <pipeline-id>", Short: "View a pipeline", Example: "  yx pipeline view <pipeline-id>\n  yx --json pipeline view <pipeline-id>", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		useCase, err := opts.pipelineUseCase()
+		useCase, err := opts.pipelineUseCase(ContextFromCommand(cmd))
 		if err != nil {
 			return err
 		}
@@ -90,7 +88,7 @@ func newPipelineCreateCommand(opts Options) *cobra.Command {
 			return fmt.Errorf("read pipeline file: %w", err)
 		}
 		input.Content = string(data)
-		useCase, err := opts.pipelineUseCase()
+		useCase, err := opts.pipelineUseCase(ContextFromCommand(cmd))
 		if err != nil {
 			return err
 		}
@@ -119,7 +117,7 @@ func newPipelineRunCommand(opts Options) *cobra.Command {
 	var input app.PipelineRunInput
 	cmd := &cobra.Command{Use: "run <pipeline-id>", Short: "Run a pipeline and inspect pipeline runs", Example: "  yx pipeline run <pipeline-id> --branch master --dry-run\n  yx pipeline run <pipeline-id> --branch master --yes\n  yx pipeline run list <pipeline-id>\n  yx pipeline run view <pipeline-id> <run-id>\n  yx pipeline run steps <pipeline-id> <run-id> --job <job-id>\n  yx pipeline run logs <pipeline-id> <run-id> --job <job-id>", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		input.PipelineID = args[0]
-		useCase, err := opts.pipelineUseCase()
+		useCase, err := opts.pipelineUseCase(ContextFromCommand(cmd))
 		if err != nil {
 			return err
 		}
@@ -148,7 +146,7 @@ func newPipelineRunListCommand(opts Options) *cobra.Command {
 	var input app.PipelineRunListInput
 	cmd := &cobra.Command{Use: "list <pipeline-id>", Short: "List pipeline runs", Example: "  yx pipeline run list 5005603\n  yx pipeline run list 5005603 --branch main\n  yx pipeline run list 5005603 --tag v1.0.0-alpha", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		input.PipelineID = args[0]
-		useCase, err := opts.pipelineUseCase()
+		useCase, err := opts.pipelineUseCase(ContextFromCommand(cmd))
 		if err != nil {
 			return err
 		}
@@ -176,7 +174,7 @@ func newPipelineRunListCommand(opts Options) *cobra.Command {
 
 func newPipelineRunViewCommand(opts Options) *cobra.Command {
 	return &cobra.Command{Use: "view <pipeline-id> <run-id>", Short: "View a pipeline run", Example: "  yx pipeline run view 5005603 <run-id>\n  yx --json pipeline run view 5005603 <run-id>", Args: cobra.ExactArgs(2), RunE: func(cmd *cobra.Command, args []string) error {
-		useCase, err := opts.pipelineUseCase()
+		useCase, err := opts.pipelineUseCase(ContextFromCommand(cmd))
 		if err != nil {
 			return err
 		}
@@ -200,7 +198,7 @@ func newPipelineRunLogsCommand(opts Options) *cobra.Command {
 	var offset int
 	var limit int
 	cmd := &cobra.Command{Use: "logs <pipeline-id> <run-id>", Short: "View a pipeline job run log", Example: "  yx pipeline run logs 5005603 <run-id> --job <job-id>", Args: cobra.ExactArgs(2), RunE: func(cmd *cobra.Command, args []string) error {
-		useCase, err := opts.pipelineUseCase()
+		useCase, err := opts.pipelineUseCase(ContextFromCommand(cmd))
 		if err != nil {
 			return err
 		}
@@ -225,7 +223,7 @@ func newPipelineRunLogsCommand(opts Options) *cobra.Command {
 func newPipelineRunStepsCommand(opts Options) *cobra.Command {
 	var jobID string
 	cmd := &cobra.Command{Use: "steps <pipeline-id> <run-id>", Short: "List pipeline job steps", Example: "  yx pipeline run steps 5005603 <run-id> --job <job-id>\n  yx --json pipeline run steps 5005603 <run-id> --job <job-id>", Args: cobra.ExactArgs(2), RunE: func(cmd *cobra.Command, args []string) error {
-		useCase, err := opts.pipelineUseCase()
+		useCase, err := opts.pipelineUseCase(ContextFromCommand(cmd))
 		if err != nil {
 			return err
 		}
@@ -251,7 +249,7 @@ func newPipelineLogsCommand(opts Options) *cobra.Command {
 	var input app.PipelineLogsInput
 	cmd := &cobra.Command{Use: "logs <run-id>", Short: "View pipeline run logs", Example: "  yx pipeline logs <run-id>\n  yx pipeline logs <run-id> --follow", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		input.RunID = args[0]
-		useCase, err := opts.pipelineUseCase()
+		useCase, err := opts.pipelineUseCase(ContextFromCommand(cmd))
 		if err != nil {
 			return err
 		}
@@ -268,32 +266,19 @@ func newPipelineLogsCommand(opts Options) *cobra.Command {
 	return cmd
 }
 
-func (o Options) pipelineUseCase() (PipelineUseCase, error) {
+func (o Options) pipelineUseCase(ctx Context) (PipelineUseCase, error) {
 	if o.PipelineUseCase != nil {
 		return o.PipelineUseCase, nil
 	}
-	cfg, err := config.NewStore(o.ConfigPath).Load()
+	runtime, err := o.resolveRuntimeProfile(ctx)
 	if err != nil {
 		return nil, err
 	}
-	profileName := o.DefaultProfile
-	if profileName == "" {
-		profileName = cfg.Current
-	}
-	if profileName == "" {
-		profileName = "default"
-	}
-	profile, ok := cfg.Profiles[profileName]
-	if !ok {
-		return nil, fmt.Errorf("profile %q does not exist", profileName)
-	}
-	token, ok, err := auth.NewFileTokenStore(defaultTokenPath(o.ConfigPath)).Load(profileName)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, fmt.Errorf("profile %q is not logged in", profileName)
-	}
-	adapter := flow.NewAdapter(yunxiao.ClientConfig{BaseURL: profile.Domain, Token: token, OrganizationID: profile.Organization, Region: profile.Region})
-	return app.NewPipelineUseCase(adapter, safety.Environment{ConfirmWrites: profile.Safety.ConfirmWrites}), nil
+	adapter := flow.NewAdapter(yunxiao.ClientConfig{
+		BaseURL:        runtime.Profile.Domain,
+		Token:          runtime.Token,
+		OrganizationID: runtime.Profile.Organization,
+		Region:         runtime.Profile.Region,
+	})
+	return app.NewPipelineUseCase(adapter, safety.Environment{ConfirmWrites: runtime.Profile.Safety.ConfirmWrites}), nil
 }

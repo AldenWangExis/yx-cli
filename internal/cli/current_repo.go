@@ -15,7 +15,7 @@ func resolveRepositoryID(cmd *cobra.Command, opts Options, repo string) (string,
 	if err != nil {
 		return "", err
 	}
-	return current.ID, nil
+	return string(current.ID), nil
 }
 
 func resolveCurrentRepository(cmd *cobra.Command, opts Options) (app.CurrentRepository, error) {

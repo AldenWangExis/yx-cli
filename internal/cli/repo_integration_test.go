@@ -58,6 +58,60 @@ func TestRepoListBuildsDefaultUseCaseFromConfigAndToken(t *testing.T) {
 	}
 }
 
+func TestRepoListUsesCommandProfileDomainAndOrganizationOverrides(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("x-yunxiao-token") != "token-alt" {
+			t.Fatalf("expected alt token, got %q", r.Header.Get("x-yunxiao-token"))
+		}
+		if r.URL.Path != "/oapi/v1/codeup/organizations/org-override/repositories" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"id":2,"name":"override-demo","pathWithNamespace":"org-override/demo"}]`))
+	}))
+	defer server.Close()
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	if err := config.NewStore(configPath).Save(config.Config{
+		Current: "default",
+		Profiles: map[string]config.Profile{
+			"default": {
+				Domain:       server.URL,
+				Organization: "org-default",
+				Region:       "center",
+			},
+			"alt": {
+				Domain:       "https://devops.aliyun.com",
+				Organization: "org-alt",
+				Region:       "center",
+			},
+		},
+	}); err != nil {
+		t.Fatalf("failed to save config: %v", err)
+	}
+	tokenStore := auth.NewFileTokenStore(filepath.Join(dir, "tokens.yaml"))
+	if err := tokenStore.Save("default", "token-default"); err != nil {
+		t.Fatalf("failed to save default token: %v", err)
+	}
+	if err := tokenStore.Save("alt", "token-alt"); err != nil {
+		t.Fatalf("failed to save alt token: %v", err)
+	}
+
+	stdout, stderr, err := executeCommand(t, NewRootCommandWithOptions(Options{ConfigPath: configPath}),
+		"--profile", "alt", "--domain", server.URL, "--org", "org-override", "--json", "repo", "list")
+	if err != nil {
+		t.Fatalf("expected repo list with overrides to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	var repos []app.RepositoryListItem
+	if err := json.Unmarshal([]byte(stdout), &repos); err != nil {
+		t.Fatalf("expected JSON repos, got error: %v output=%s", err, stdout)
+	}
+	if len(repos) != 1 || repos[0].Name != "override-demo" {
+		t.Fatalf("unexpected repos: %+v", repos)
+	}
+}
+
 func TestRepoCurrentBuildsDefaultResolverFromConfigTokenGitRemoteAndCaches(t *testing.T) {
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

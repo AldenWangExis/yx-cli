@@ -16,13 +16,19 @@ type CurrentRepositoryInput struct {
 	Refresh      bool
 }
 
+type RepositoryID string
+
+type RepositoryPath string
+
+type GitRemoteName string
+
 type CurrentRepository struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Path      string `json:"path"`
-	Remote    string `json:"remote"`
-	RemoteURL string `json:"remoteUrl"`
-	Source    string `json:"source"`
+	ID        RepositoryID   `json:"id"`
+	Name      string         `json:"name"`
+	Path      RepositoryPath `json:"path"`
+	Remote    GitRemoteName  `json:"remote"`
+	RemoteURL string         `json:"remoteUrl"`
+	Source    string         `json:"source"`
 }
 
 type GitRemoteReader interface {
@@ -58,8 +64,8 @@ func (r *RepositoryIdentityResolver) CurrentRepository(ctx context.Context, inpu
 
 	key := remote.PathWithNamespace
 	if !input.Refresh && r.cache != nil {
-		if cached, ok, err := r.cache.LookupRepositoryIdentity(input.ProfileName, key); err == nil && ok && cached.ID != "" && cached.Path == key {
-			cached.Remote = remote.RemoteName
+		if cached, ok, err := r.cache.LookupRepositoryIdentity(input.ProfileName, key); err == nil && ok && cached.ID != "" && string(cached.Path) == key {
+			cached.Remote = GitRemoteName(remote.RemoteName)
 			cached.RemoteURL = remote.RemoteURL
 			cached.Source = "cache"
 			return cached, nil
@@ -84,10 +90,10 @@ func (r *RepositoryIdentityResolver) CurrentRepository(ctx context.Context, inpu
 	}
 
 	current := CurrentRepository{
-		ID:        matches[0].ID,
+		ID:        RepositoryID(matches[0].ID),
 		Name:      matches[0].Name,
-		Path:      matches[0].Path,
-		Remote:    remote.RemoteName,
+		Path:      RepositoryPath(matches[0].Path),
+		Remote:    GitRemoteName(remote.RemoteName),
 		RemoteURL: remote.RemoteURL,
 		Source:    "api",
 	}

@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/AldenWangExis/yx-cli/internal/app"
-	"github.com/AldenWangExis/yx-cli/internal/auth"
-	"github.com/AldenWangExis/yx-cli/internal/config"
 	"github.com/AldenWangExis/yx-cli/internal/output"
 	"github.com/AldenWangExis/yx-cli/internal/safety"
 	"github.com/AldenWangExis/yx-cli/internal/yunxiao"
@@ -35,7 +33,7 @@ func newProjectCommand(opts Options) *cobra.Command {
 		Short:   "List projects",
 		Example: "  yx project list\n  yx --json project list",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			useCase, err := opts.workitemUseCase()
+			useCase, err := opts.workitemUseCase(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -65,7 +63,7 @@ func newProjectCreateCommand(opts Options) *cobra.Command {
 		Short:   "Create a project",
 		Example: "  yx project create --name demo --dry-run\n  yx project create --name demo --description \"Demo project\" --yes",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			useCase, err := opts.workitemUseCase()
+			useCase, err := opts.workitemUseCase(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -114,7 +112,7 @@ func newWorkitemListCommand(opts Options) *cobra.Command {
 				}
 				input.Repo = repoID
 			}
-			useCase, err := opts.workitemUseCase()
+			useCase, err := opts.workitemUseCase(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -145,7 +143,7 @@ func newWorkitemViewCommand(opts Options) *cobra.Command {
 		Example: "  yx workitem view <workitem-id>\n  yx --json workitem view <workitem-id>",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			useCase, err := opts.workitemUseCase()
+			useCase, err := opts.workitemUseCase(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -172,7 +170,7 @@ func newWorkitemCreateCommand(opts Options) *cobra.Command {
 		Short:   "Create a work item",
 		Example: "  yx workitem create --project <project-id> --type Task --title \"Do work\" --dry-run\n  yx workitem create --project <project-id> --type Task --title \"Do work\" --yes",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			useCase, err := opts.workitemUseCase()
+			useCase, err := opts.workitemUseCase(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -200,7 +198,7 @@ func newWorkitemUpdateCommand(opts Options) *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			input.ID = args[0]
-			useCase, err := opts.workitemUseCase()
+			useCase, err := opts.workitemUseCase(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -244,39 +242,21 @@ func renderWorkitemMutation(cmd *cobra.Command, result app.WorkitemMutationResul
 	return renderer.WriteTable([]string{"ID", "TITLE", "STATUS"}, [][]string{{item.ID, item.Title, item.Status}})
 }
 
-func (o Options) workitemUseCase() (WorkitemUseCase, error) {
+func (o Options) workitemUseCase(ctx Context) (WorkitemUseCase, error) {
 	if o.WorkitemUseCase != nil {
 		return o.WorkitemUseCase, nil
 	}
-	cfg, err := config.NewStore(o.ConfigPath).Load()
+	runtime, err := o.resolveRuntimeProfile(ctx)
 	if err != nil {
 		return nil, err
-	}
-	profileName := o.DefaultProfile
-	if profileName == "" {
-		profileName = cfg.Current
-	}
-	if profileName == "" {
-		profileName = "default"
-	}
-	profile, ok := cfg.Profiles[profileName]
-	if !ok {
-		return nil, fmt.Errorf("profile %q does not exist", profileName)
-	}
-	token, ok, err := auth.NewFileTokenStore(defaultTokenPath(o.ConfigPath)).Load(profileName)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, fmt.Errorf("profile %q is not logged in", profileName)
 	}
 	adapter := projex.NewAdapter(yunxiao.ClientConfig{
-		BaseURL:        profile.Domain,
-		Token:          token,
-		OrganizationID: profile.Organization,
-		Region:         profile.Region,
+		BaseURL:        runtime.Profile.Domain,
+		Token:          runtime.Token,
+		OrganizationID: runtime.Profile.Organization,
+		Region:         runtime.Profile.Region,
 	})
-	return app.NewWorkitemUseCase(adapter, adapter, profile.RepoProjectMap, safety.Environment{
-		ConfirmWrites: profile.Safety.ConfirmWrites,
+	return app.NewWorkitemUseCase(adapter, adapter, runtime.Profile.RepoProjectMap, safety.Environment{
+		ConfirmWrites: runtime.Profile.Safety.ConfirmWrites,
 	}), nil
 }
