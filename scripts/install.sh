@@ -2,7 +2,7 @@
 set -eu
 
 repo="${YX_INSTALL_REPO:-AldenWangExis/yx-cli}"
-version="${YX_INSTALL_VERSION:-v0.2.1}"
+version="${YX_INSTALL_VERSION:-}"
 install_dir="${YX_INSTALL_DIR:-$HOME/.local/bin}"
 
 need() {
@@ -35,7 +35,19 @@ detect_asset() {
 
 download_url() {
 	asset="$1"
-	printf 'https://github.com/%s/releases/download/%s/%s' "$repo" "$version" "$asset"
+	if [ -n "$version" ]; then
+		printf 'https://github.com/%s/releases/download/%s/%s' "$repo" "$version" "$asset"
+	else
+		printf 'https://github.com/%s/releases/latest/download/%s' "$repo" "$asset"
+	fi
+}
+
+release_label() {
+	if [ -n "$version" ]; then
+		printf '%s' "$version"
+	else
+		printf 'latest'
+	fi
 }
 
 profile_path() {
@@ -104,8 +116,12 @@ trap cleanup EXIT INT TERM
 mkdir -p "$install_dir"
 mkdir -p "$tmp_dir"
 if can_use_gh; then
-	printf 'Downloading %s from %s with gh\n' "$asset" "$repo"
-	gh release download "$version" --repo "$repo" --pattern "$asset" --dir "$tmp_dir" --clobber
+	printf 'Downloading %s from %s release %s with gh\n' "$asset" "$repo" "$(release_label)"
+	if [ -n "$version" ]; then
+		gh release download "$version" --repo "$repo" --pattern "$asset" --dir "$tmp_dir" --clobber
+	else
+		gh release download --repo "$repo" --pattern "$asset" --dir "$tmp_dir" --clobber
+	fi
 else
 	need curl
 	printf 'Downloading %s\n' "$url"

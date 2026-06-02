@@ -10,7 +10,13 @@ Install `yx`:
 curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/main/scripts/install.sh | sh
 ```
 
-The installer writes `yx` to `~/.local/bin` by default, adds that directory to your shell profile when needed, and prints the restart or `source` command required for the current terminal.
+The installer downloads the latest GitHub Release by default, writes `yx` to `~/.local/bin`, adds that directory to your shell profile when needed, and prints the restart or `source` command required for the current terminal.
+
+Install a specific release when you need a pinned version:
+
+```bash
+YX_INSTALL_VERSION=v1.0.0 curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/main/scripts/install.sh | sh
+```
 
 Verify:
 
