@@ -25,6 +25,7 @@ type Options struct {
 	MergeRequestUseCase MergeRequestUseCase
 	WorkitemUseCase     WorkitemUseCase
 	PipelineUseCase     PipelineUseCase
+	OrganizationUseCase OrganizationUseCase
 	AuthAccountResolver AuthAccountResolver
 }
 

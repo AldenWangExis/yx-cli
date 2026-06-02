@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/AldenWangExis/yx-cli/internal/app"
 	"github.com/AldenWangExis/yx-cli/internal/auth"
 	"github.com/AldenWangExis/yx-cli/internal/config"
 	"github.com/spf13/cobra"
@@ -166,7 +167,7 @@ func newAuthLoginCommand(opts Options) *cobra.Command {
 				return err
 			}
 			reader := bufio.NewReader(cmd.InOrStdin())
-			fmt.Fprintf(cmd.OutOrStdout(), "Yunxiao personal access token (%s): ", yunxiaoPATURL)
+			fmt.Fprintf(cmd.OutOrStdout(), "Yunxiao personal access token:\n  %s\nToken: ", yunxiaoPATURL)
 			token, err := reader.ReadString('\n')
 			if err != nil && !errors.Is(err, io.EOF) {
 				return fmt.Errorf("read token: %w", err)
@@ -179,7 +180,7 @@ func newAuthLoginCommand(opts Options) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			serviceConnection, err := readOptionalLine(reader, cmd.OutOrStdout(), fmt.Sprintf("Codeup service connection ID (optional, %s): ", yunxiaoServiceConnectionURL))
+			serviceConnection, err := readOptionalLine(reader, cmd.OutOrStdout(), fmt.Sprintf("Codeup service connection ID (optional):\n  %s\nService connection ID: ", yunxiaoServiceConnectionURL))
 			if err != nil {
 				return err
 			}
@@ -189,10 +190,64 @@ func newAuthLoginCommand(opts Options) *cobra.Command {
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "stored Codeup service connection for profile %s\n", status.Profile)
 			}
+			if err := autoStoreLoginOrganization(cmd, opts, profile, reader); err != nil {
+				return err
+			}
 			writeSuccess(cmd.OutOrStdout(), "✓ Logged in profile %s using %s token store\n", status.Profile, status.Backend)
 			return nil
 		},
 	}
+}
+
+func autoStoreLoginOrganization(cmd *cobra.Command, opts Options, profile string, reader *bufio.Reader) error {
+	if opts.OrganizationUseCase == nil && opts.AuthProvider != nil {
+		return nil
+	}
+	usecase, err := opts.resolveOrganizationUseCase(ContextFromCommand(cmd))
+	if err != nil {
+		return nil
+	}
+	organizations, err := usecase.ListOrganizations(cmd.Context())
+	if err != nil {
+		return nil
+	}
+	switch len(organizations) {
+	case 0:
+		return nil
+	case 1:
+		if err := saveProfileOrganization(opts.ConfigPath, profile, organizations[0]); err != nil {
+			return err
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "stored organization %s (%s) for profile %s\n", organizations[0].ID, organizations[0].Name, profile)
+	default:
+		if err := renderOrganizations(cmd.OutOrStdout(), false, organizations); err != nil {
+			return err
+		}
+		organizationID, err := readOptionalLine(reader, cmd.OutOrStdout(), "Yunxiao organization ID (optional): ")
+		if err != nil {
+			return err
+		}
+		if organizationID != "" {
+			organization, ok := appOrganizationByID(organizations, organizationID)
+			if !ok {
+				return fmt.Errorf("organization %q was not in the discovered organization list", organizationID)
+			}
+			if err := saveProfileOrganization(opts.ConfigPath, profile, organization); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "stored organization %s for profile %s\n", organizationID, profile)
+		}
+	}
+	return nil
+}
+
+func appOrganizationByID(organizations []app.Organization, id string) (app.Organization, bool) {
+	for _, organization := range organizations {
+		if organization.ID == id {
+			return organization, true
+		}
+	}
+	return app.Organization{}, false
 }
 
 func writeSuccess(w io.Writer, format string, args ...any) {

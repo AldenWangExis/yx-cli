@@ -39,6 +39,14 @@ yx config set profiles.default.region center
 yx config use default
 ```
 
+If you already have a Yunxiao personal access token, you can discover available organizations instead of copying the organization ID manually:
+
+```bash
+yx auth login
+yx org list
+yx org use <organization-id>
+```
+
 Optional Codeup service connection configuration:
 
 ```bash

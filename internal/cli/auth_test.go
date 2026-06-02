@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/AldenWangExis/yx-cli/internal/app"
 	"github.com/AldenWangExis/yx-cli/internal/auth"
 	"github.com/AldenWangExis/yx-cli/internal/config"
 )
@@ -78,6 +79,9 @@ func TestAuthStatusLoginLogoutUseProvider(t *testing.T) {
 	if !strings.Contains(stdout, "Yunxiao personal access token") {
 		t.Fatalf("expected login prompt, got stdout:\n%s", stdout)
 	}
+	if !strings.Contains(stdout, "Yunxiao personal access token:\n  https://account-devops.aliyun.com/settings/personalAccessToken\nToken: ") {
+		t.Fatalf("expected token prompt to put reference URL on its own line, got stdout:\n%s", stdout)
+	}
 	if !strings.Contains(stdout, "✓ Logged in profile default using fake token store") {
 		t.Fatalf("expected explicit login success, got stdout:\n%s", stdout)
 	}
@@ -142,10 +146,8 @@ func TestAuthLoginStoresOptionalServiceConnection(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"Yunxiao personal access token",
-		"https://account-devops.aliyun.com/settings/personalAccessToken",
-		"Codeup service connection ID",
-		"https://flow.aliyun.com/setting/service-connection",
+		"Yunxiao personal access token:\n  https://account-devops.aliyun.com/settings/personalAccessToken\nToken: ",
+		"Codeup service connection ID (optional):\n  https://flow.aliyun.com/setting/service-connection\nService connection ID: ",
 		"stored Codeup service connection for profile default",
 		"✓ Logged in profile default using fake token store",
 	} {
@@ -165,6 +167,85 @@ func TestAuthLoginStoresOptionalServiceConnection(t *testing.T) {
 	}
 	if strings.Contains(stdout, "secret-token") || strings.Contains(stderr, "secret-token") {
 		t.Fatal("auth login leaked token")
+	}
+}
+
+func TestAuthLoginAutoStoresSingleDiscoveredOrganization(t *testing.T) {
+	provider := &fakeAuthProvider{}
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	usecase := &fakeOrganizationUseCase{organizations: []app.Organization{
+		{ID: "org-1", Name: "研发组织"},
+	}}
+
+	cmd := NewRootCommandWithOptions(Options{
+		ConfigPath:          configPath,
+		AuthProvider:        provider,
+		DefaultProfile:      "default",
+		OrganizationUseCase: usecase,
+	})
+	cmd.SetIn(strings.NewReader("secret-token\n\n"))
+	stdout, stderr, err := executeCommand(t, cmd, "auth", "login")
+	if err != nil {
+		t.Fatalf("expected auth login to succeed, got error: %v stderr=%s", err, stderr)
+	}
+
+	if !strings.Contains(stdout, "stored organization org-1 (研发组织) for profile default") {
+		t.Fatalf("expected login to report stored organization, got:\n%s", stdout)
+	}
+	cfg, err := config.NewStore(configPath).Load()
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	profile := cfg.Profiles["default"]
+	if profile.Domain != "https://devops.aliyun.com" {
+		t.Fatalf("expected login to default profile domain, got %q", profile.Domain)
+	}
+	if profile.Organization != "org-1" {
+		t.Fatalf("expected login to store discovered organization, got %q", profile.Organization)
+	}
+	if usecase.listCalls != 1 {
+		t.Fatalf("expected organization lookup once, got %d", usecase.listCalls)
+	}
+}
+
+func TestAuthLoginPromptsWhenMultipleOrganizationsAreDiscovered(t *testing.T) {
+	provider := &fakeAuthProvider{}
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	usecase := &fakeOrganizationUseCase{organizations: []app.Organization{
+		{ID: "org-1", Name: "研发组织"},
+		{ID: "org-2", Name: "测试组织"},
+	}}
+
+	cmd := NewRootCommandWithOptions(Options{
+		ConfigPath:          configPath,
+		AuthProvider:        provider,
+		DefaultProfile:      "default",
+		OrganizationUseCase: usecase,
+	})
+	cmd.SetIn(strings.NewReader("secret-token\n\norg-2\n"))
+	stdout, stderr, err := executeCommand(t, cmd, "auth", "login")
+	if err != nil {
+		t.Fatalf("expected auth login to succeed, got error: %v stderr=%s", err, stderr)
+	}
+
+	for _, want := range []string{
+		"org-1",
+		"研发组织",
+		"org-2",
+		"测试组织",
+		"Yunxiao organization ID (optional):",
+		"stored organization org-2 for profile default",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("expected login output to include %q, got:\n%s", want, stdout)
+		}
+	}
+	cfg, err := config.NewStore(configPath).Load()
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.Profiles["default"].Organization != "org-2" {
+		t.Fatalf("expected selected organization to be saved, got %q", cfg.Profiles["default"].Organization)
 	}
 }
 
