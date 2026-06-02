@@ -27,11 +27,14 @@ type Profile struct {
 }
 
 type RepoIdentity struct {
-	ID        string `yaml:"id"`
-	Name      string `yaml:"name"`
-	Path      string `yaml:"path"`
-	Remote    string `yaml:"remote"`
-	UpdatedAt string `yaml:"updatedAt"`
+	ID           string `yaml:"id"`
+	Name         string `yaml:"name"`
+	Path         string `yaml:"path"`
+	Remote       string `yaml:"remote"`
+	Domain       string `yaml:"domain,omitempty"`
+	Organization string `yaml:"organization,omitempty"`
+	Region       string `yaml:"region,omitempty"`
+	UpdatedAt    string `yaml:"updatedAt"`
 }
 
 type Safety struct {

@@ -44,11 +44,14 @@ func TestSaveAndLoadConfig(t *testing.T) {
 				},
 				RepoIdentityMap: map[string]RepoIdentity{
 					"org/demo": {
-						ID:        "2813489",
-						Name:      "demo",
-						Path:      "org/demo",
-						Remote:    "origin",
-						UpdatedAt: "2026-06-01T00:00:00Z",
+						ID:           "2813489",
+						Name:         "demo",
+						Path:         "org/demo",
+						Remote:       "origin",
+						Domain:       "https://openapi-rdc.aliyuncs.com",
+						Organization: "org",
+						Region:       "center",
+						UpdatedAt:    "2026-06-01T00:00:00Z",
 					},
 				},
 			},
@@ -80,6 +83,15 @@ func TestSaveAndLoadConfig(t *testing.T) {
 	}
 	if loaded.Profiles["default"].RepoIdentityMap["org/demo"].ID != "2813489" {
 		t.Fatalf("expected repo identity cache to round-trip")
+	}
+	if loaded.Profiles["default"].RepoIdentityMap["org/demo"].Domain != "https://openapi-rdc.aliyuncs.com" {
+		t.Fatalf("expected repo identity domain to round-trip")
+	}
+	if loaded.Profiles["default"].RepoIdentityMap["org/demo"].Organization != "org" {
+		t.Fatalf("expected repo identity organization to round-trip")
+	}
+	if loaded.Profiles["default"].RepoIdentityMap["org/demo"].Region != "center" {
+		t.Fatalf("expected repo identity region to round-trip")
 	}
 
 	info, err := os.Stat(path)

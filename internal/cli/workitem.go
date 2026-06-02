@@ -6,9 +6,6 @@ import (
 
 	"github.com/AldenWangExis/yx-cli/internal/app"
 	"github.com/AldenWangExis/yx-cli/internal/output"
-	"github.com/AldenWangExis/yx-cli/internal/safety"
-	"github.com/AldenWangExis/yx-cli/internal/yunxiao"
-	"github.com/AldenWangExis/yx-cli/internal/yunxiao/projex"
 	"github.com/spf13/cobra"
 )
 
@@ -246,17 +243,9 @@ func (o Options) workitemUseCase(ctx Context) (WorkitemUseCase, error) {
 	if o.WorkitemUseCase != nil {
 		return o.WorkitemUseCase, nil
 	}
-	runtime, err := o.resolveRuntimeProfile(ctx)
+	services, err := o.resolveRuntimeServices(ctx)
 	if err != nil {
 		return nil, err
 	}
-	adapter := projex.NewAdapter(yunxiao.ClientConfig{
-		BaseURL:        runtime.Profile.Domain,
-		Token:          runtime.Token,
-		OrganizationID: runtime.Profile.Organization,
-		Region:         runtime.Profile.Region,
-	})
-	return app.NewWorkitemUseCase(adapter, adapter, runtime.Profile.RepoProjectMap, safety.Environment{
-		ConfirmWrites: runtime.Profile.Safety.ConfirmWrites,
-	}), nil
+	return services.workitemUseCase(), nil
 }

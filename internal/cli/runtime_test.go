@@ -75,3 +75,40 @@ func TestResolveRuntimeProfileUsesDefaultProfileBeforeCurrent(t *testing.T) {
 		t.Fatalf("unexpected runtime profile: %+v", runtime)
 	}
 }
+
+func TestResolveRuntimeServicesBuildsSharedRuntimeDependencies(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	if err := config.NewStore(configPath).Save(config.Config{
+		Current: "default",
+		Profiles: map[string]config.Profile{
+			"default": {
+				Domain:       "https://devops.aliyun.com",
+				Organization: "org-1",
+				Region:       "center",
+				Safety:       config.Safety{ConfirmWrites: true},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	if err := auth.NewFileTokenStore(filepath.Join(dir, "tokens.yaml")).Save("default", "token-1"); err != nil {
+		t.Fatalf("save token: %v", err)
+	}
+
+	services, err := (Options{ConfigPath: configPath}).resolveRuntimeServices(Context{})
+	if err != nil {
+		t.Fatalf("expected runtime services, got: %v", err)
+	}
+	clientConfig := services.clientConfig()
+	if clientConfig.BaseURL != "https://devops.aliyun.com" || clientConfig.Token != "token-1" || clientConfig.OrganizationID != "org-1" || clientConfig.Region != "center" {
+		t.Fatalf("unexpected client config: %+v", clientConfig)
+	}
+	if !services.safetyEnvironment().ConfirmWrites {
+		t.Fatal("expected shared safety environment to preserve confirmWrites")
+	}
+	repoContext := services.repoCurrentContext()
+	if repoContext.ProfileName != "default" || repoContext.Domain != "https://openapi-rdc.aliyuncs.com" || repoContext.Organization != "org-1" || repoContext.Region != "center" {
+		t.Fatalf("unexpected repo current context: %+v", repoContext)
+	}
+}

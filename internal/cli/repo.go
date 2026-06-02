@@ -7,11 +7,7 @@ import (
 
 	"github.com/AldenWangExis/yx-cli/internal/app"
 	"github.com/AldenWangExis/yx-cli/internal/config"
-	"github.com/AldenWangExis/yx-cli/internal/gitx"
 	"github.com/AldenWangExis/yx-cli/internal/output"
-	"github.com/AldenWangExis/yx-cli/internal/safety"
-	"github.com/AldenWangExis/yx-cli/internal/yunxiao"
-	"github.com/AldenWangExis/yx-cli/internal/yunxiao/codeup"
 	"github.com/spf13/cobra"
 )
 
@@ -57,7 +53,7 @@ func newRepoCurrentCommand(opts Options) *cobra.Command {
 		Long:    "Resolve the current Codeup repository by reading git remotes, matching the exact Codeup path through OpenAPI, and caching the repository identity.",
 		Example: "  yx repo current\n  yx --json repo current\n  yx repo current --remote codeup\n  yx repo current --refresh",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resolver, profileName, organization, err := opts.repoCurrentResolver(ContextFromCommand(cmd))
+			resolver, runtimeContext, err := opts.repoCurrentResolver(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -66,8 +62,10 @@ func newRepoCurrentCommand(opts Options) *cobra.Command {
 				return err
 			}
 			current, err := resolver.CurrentRepository(cmd.Context(), app.CurrentRepositoryInput{
-				ProfileName:  profileName,
-				Organization: organization,
+				ProfileName:  runtimeContext.ProfileName,
+				Domain:       runtimeContext.Domain,
+				Organization: runtimeContext.Organization,
+				Region:       runtimeContext.Region,
 				WorkDir:      workDir,
 				Remote:       remote,
 				Refresh:      refresh,
@@ -407,22 +405,21 @@ func (o Options) repoUseCase(ctx Context) (RepositoryUseCase, error) {
 	if o.RepoUseCase != nil {
 		return o.RepoUseCase, nil
 	}
-	runtime, err := o.resolveRuntimeProfile(ctx)
+	services, err := o.resolveRuntimeServices(ctx)
 	if err != nil {
 		return nil, err
 	}
-	repositories := codeup.NewRepositoryAdapter(yunxiao.ClientConfig{
-		BaseURL:        runtime.Profile.Domain,
-		Token:          runtime.Token,
-		OrganizationID: runtime.Profile.Organization,
-		Region:         runtime.Profile.Region,
-	})
-	return app.NewRepoUseCase(repositories, gitx.NewRunner(), safety.Environment{
-		ConfirmWrites: runtime.Profile.Safety.ConfirmWrites,
-	}), nil
+	return services.repoUseCase(), nil
 }
 
-func (o Options) repoCurrentResolver(ctx Context) (RepositoryCurrentResolver, string, string, error) {
+type repoCurrentRuntimeContext struct {
+	ProfileName  string
+	Domain       string
+	Organization string
+	Region       string
+}
+
+func (o Options) repoCurrentResolver(ctx Context) (RepositoryCurrentResolver, repoCurrentRuntimeContext, error) {
 	if o.RepoCurrentResolver != nil {
 		profileName := ctx.Profile
 		if profileName == "" {
@@ -431,62 +428,78 @@ func (o Options) repoCurrentResolver(ctx Context) (RepositoryCurrentResolver, st
 		if profileName == "" {
 			profileName = "default"
 		}
-		return o.RepoCurrentResolver, profileName, ctx.Organization, nil
+		return o.RepoCurrentResolver, repoCurrentRuntimeContext{
+			ProfileName:  profileName,
+			Domain:       ctx.Domain,
+			Organization: ctx.Organization,
+		}, nil
 	}
-	runtime, err := o.resolveRuntimeProfile(ctx)
+	services, err := o.resolveRuntimeServices(ctx)
 	if err != nil {
-		return nil, "", "", err
+		return nil, repoCurrentRuntimeContext{}, err
 	}
-	repositories := codeup.NewRepositoryAdapter(yunxiao.ClientConfig{
-		BaseURL:        runtime.Profile.Domain,
-		Token:          runtime.Token,
-		OrganizationID: runtime.Profile.Organization,
-		Region:         runtime.Profile.Region,
-	})
-	return app.NewRepositoryIdentityResolver(repositories, gitx.NewRunner(), configRepositoryIdentityCache{store: runtime.Store}), runtime.Name, runtime.Profile.Organization, nil
+	return services.repoCurrentResolver(), services.repoCurrentContext(), nil
 }
 
 type configRepositoryIdentityCache struct {
 	store *config.Store
 }
 
-func (c configRepositoryIdentityCache) LookupRepositoryIdentity(profileName, key string) (app.CurrentRepository, bool, error) {
+func (c configRepositoryIdentityCache) LookupRepositoryIdentity(key app.RepositoryIdentityCacheKey) (app.CurrentRepository, bool, error) {
 	cfg, err := c.store.Load()
 	if err != nil {
 		return app.CurrentRepository{}, false, err
 	}
-	profile, ok := cfg.Profiles[profileName]
+	profile, ok := cfg.Profiles[key.ProfileName]
 	if !ok {
 		return app.CurrentRepository{}, false, nil
 	}
-	identity, ok := profile.RepoIdentityMap[key]
+	identity, ok := profile.RepoIdentityMap[key.StorageKey()]
 	if !ok {
+		return app.CurrentRepository{}, false, nil
+	}
+	if identity.Path != "" && identity.Path != key.Path {
+		return app.CurrentRepository{}, false, nil
+	}
+	if identity.Domain != "" && identity.Domain != key.Domain {
+		return app.CurrentRepository{}, false, nil
+	}
+	if identity.Organization != "" && identity.Organization != key.Organization {
+		return app.CurrentRepository{}, false, nil
+	}
+	if identity.Region != "" && identity.Region != key.Region {
 		return app.CurrentRepository{}, false, nil
 	}
 	return app.CurrentRepository{
-		ID:     app.RepositoryID(identity.ID),
-		Name:   identity.Name,
-		Path:   app.RepositoryPath(identity.Path),
-		Remote: app.GitRemoteName(identity.Remote),
+		ID:           app.RepositoryID(identity.ID),
+		Name:         identity.Name,
+		Path:         app.RepositoryPath(identity.Path),
+		Remote:       app.GitRemoteName(identity.Remote),
+		Domain:       identity.Domain,
+		Organization: identity.Organization,
+		Region:       identity.Region,
 	}, true, nil
 }
 
-func (c configRepositoryIdentityCache) StoreRepositoryIdentity(profileName, key string, repo app.CurrentRepository) error {
+func (c configRepositoryIdentityCache) StoreRepositoryIdentity(key app.RepositoryIdentityCacheKey, repo app.CurrentRepository) error {
 	cfg, err := c.store.Load()
 	if err != nil {
 		return err
 	}
-	profile := cfg.Profiles[profileName]
+	profile := cfg.Profiles[key.ProfileName]
 	if profile.RepoIdentityMap == nil {
 		profile.RepoIdentityMap = map[string]config.RepoIdentity{}
 	}
-	profile.RepoIdentityMap[key] = config.RepoIdentity{
-		ID:        string(repo.ID),
-		Name:      repo.Name,
-		Path:      string(repo.Path),
-		Remote:    string(repo.Remote),
-		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+	profile.RepoIdentityMap[key.StorageKey()] = config.RepoIdentity{
+		ID:           string(repo.ID),
+		Name:         repo.Name,
+		Path:         string(repo.Path),
+		Remote:       string(repo.Remote),
+		Domain:       key.Domain,
+		Organization: key.Organization,
+		Region:       key.Region,
+		UpdatedAt:    time.Now().UTC().Format(time.RFC3339),
 	}
-	cfg.Profiles[profileName] = profile
+	cfg.Profiles[key.ProfileName] = profile
 	return c.store.Save(cfg)
 }

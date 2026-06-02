@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 
 	"github.com/AldenWangExis/yx-cli/internal/app"
 	"github.com/AldenWangExis/yx-cli/internal/yunxiao"
@@ -23,29 +22,17 @@ func NewChangeRequestAdapter(config yunxiao.ClientConfig) *ChangeRequestAdapter 
 func (a *ChangeRequestAdapter) ListMergeRequests(ctx context.Context, repo string) ([]app.MergeRequestListItem, error) {
 	query := url.Values{}
 	query.Set("repositoryId", repo)
-	data, err := a.client.DoJSON(ctx, http.MethodGet, a.organizationChangeRequestsPath(), query, nil)
+	paths := newCodeupPaths(a.client)
+	data, err := a.client.DoJSON(ctx, http.MethodGet, paths.organizationChangeRequestsPath(), query, nil)
 	if err != nil {
 		return nil, err
 	}
-	var response []changeRequestResponse
-	if err := json.Unmarshal(data, &response); err != nil {
-		return nil, fmt.Errorf("decode change requests: %w", err)
-	}
-	items := make([]app.MergeRequestListItem, 0, len(response))
-	for _, mr := range response {
-		items = append(items, app.MergeRequestListItem{
-			ID:           formatChangeRequestID(firstNonZero(mr.ID, mr.LocalID)),
-			Title:        mr.Title,
-			State:        mr.State,
-			SourceBranch: mr.SourceBranch,
-			TargetBranch: mr.TargetBranch,
-		})
-	}
-	return items, nil
+	return decodeChangeRequests(data)
 }
 
 func (a *ChangeRequestAdapter) GetMergeRequest(ctx context.Context, repo, id string) (app.MergeRequestDetail, error) {
-	data, err := a.client.DoJSON(ctx, http.MethodGet, a.changeRequestPath(repo, id), nil, nil)
+	paths := newCodeupPaths(a.client)
+	data, err := a.client.DoJSON(ctx, http.MethodGet, paths.changeRequestPath(repo, id), nil, nil)
 	if err != nil {
 		return app.MergeRequestDetail{}, err
 	}
@@ -61,7 +48,8 @@ func (a *ChangeRequestAdapter) CreateMergeRequest(ctx context.Context, input app
 	if err != nil {
 		return app.MergeRequestDetail{}, fmt.Errorf("encode change request: %w", err)
 	}
-	data, err := a.client.DoJSON(ctx, http.MethodPost, a.changeRequestsPath(input.Repo), nil, body)
+	paths := newCodeupPaths(a.client)
+	data, err := a.client.DoJSON(ctx, http.MethodPost, paths.changeRequestsPath(input.Repo), nil, body)
 	if err != nil {
 		return app.MergeRequestDetail{}, err
 	}
@@ -69,74 +57,10 @@ func (a *ChangeRequestAdapter) CreateMergeRequest(ctx context.Context, input app
 }
 
 func (a *ChangeRequestAdapter) MergeMergeRequest(ctx context.Context, repo, id string) (app.MergeRequestDetail, error) {
-	data, err := a.client.DoJSON(ctx, http.MethodPost, a.changeRequestPath(repo, id)+"/merge", nil, []byte(`{}`))
+	paths := newCodeupPaths(a.client)
+	data, err := a.client.DoJSON(ctx, http.MethodPost, paths.changeRequestMergePath(repo, id), nil, []byte(`{}`))
 	if err != nil {
 		return app.MergeRequestDetail{}, err
 	}
 	return decodeChangeRequest(data)
-}
-
-func (a *ChangeRequestAdapter) changeRequestsPath(repo string) string {
-	if a.client.IsCenter() {
-		return fmt.Sprintf("/oapi/v1/codeup/organizations/%s/repositories/%s/changeRequests", url.PathEscape(a.client.OrganizationID()), url.PathEscape(repo))
-	}
-	return fmt.Sprintf("/oapi/v1/codeup/repositories/%s/changeRequests", url.PathEscape(repo))
-}
-
-func (a *ChangeRequestAdapter) organizationChangeRequestsPath() string {
-	if a.client.IsCenter() {
-		return fmt.Sprintf("/oapi/v1/codeup/organizations/%s/changeRequests", url.PathEscape(a.client.OrganizationID()))
-	}
-	return "/oapi/v1/codeup/changeRequests"
-}
-
-func (a *ChangeRequestAdapter) changeRequestPath(repo, id string) string {
-	return a.changeRequestsPath(repo) + "/" + url.PathEscape(id)
-}
-
-func decodeChangeRequest(data []byte) (app.MergeRequestDetail, error) {
-	var response changeRequestResponse
-	if err := json.Unmarshal(data, &response); err != nil {
-		return app.MergeRequestDetail{}, fmt.Errorf("decode change request: %w", err)
-	}
-	return app.MergeRequestDetail{
-		ID:           formatChangeRequestID(response.ID),
-		Title:        response.Title,
-		State:        response.State,
-		SourceBranch: response.SourceBranch,
-		TargetBranch: response.TargetBranch,
-		WebURL:       response.WebURL,
-	}, nil
-}
-
-func formatChangeRequestID(id int64) string {
-	if id == 0 {
-		return ""
-	}
-	return strconv.FormatInt(id, 10)
-}
-
-func firstNonZero(values ...int64) int64 {
-	for _, value := range values {
-		if value != 0 {
-			return value
-		}
-	}
-	return 0
-}
-
-type changeRequestResponse struct {
-	ID           int64  `json:"id"`
-	LocalID      int64  `json:"localId"`
-	Title        string `json:"title"`
-	State        string `json:"state"`
-	SourceBranch string `json:"sourceBranch"`
-	TargetBranch string `json:"targetBranch"`
-	WebURL       string `json:"webUrl"`
-}
-
-type changeRequestCreateRequest struct {
-	SourceBranch string `json:"sourceBranch"`
-	TargetBranch string `json:"targetBranch"`
-	Title        string `json:"title"`
 }

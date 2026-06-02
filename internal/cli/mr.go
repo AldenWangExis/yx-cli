@@ -6,9 +6,6 @@ import (
 
 	"github.com/AldenWangExis/yx-cli/internal/app"
 	"github.com/AldenWangExis/yx-cli/internal/output"
-	"github.com/AldenWangExis/yx-cli/internal/safety"
-	"github.com/AldenWangExis/yx-cli/internal/yunxiao"
-	"github.com/AldenWangExis/yx-cli/internal/yunxiao/codeup"
 	"github.com/spf13/cobra"
 )
 
@@ -184,17 +181,9 @@ func (o Options) mergeRequestUseCase(ctx Context) (MergeRequestUseCase, error) {
 	if o.MergeRequestUseCase != nil {
 		return o.MergeRequestUseCase, nil
 	}
-	runtime, err := o.resolveRuntimeProfile(ctx)
+	services, err := o.resolveRuntimeServices(ctx)
 	if err != nil {
 		return nil, err
 	}
-	service := codeup.NewChangeRequestAdapter(yunxiao.ClientConfig{
-		BaseURL:        runtime.Profile.Domain,
-		Token:          runtime.Token,
-		OrganizationID: runtime.Profile.Organization,
-		Region:         runtime.Profile.Region,
-	})
-	return app.NewMergeRequestUseCase(service, safety.Environment{
-		ConfirmWrites: runtime.Profile.Safety.ConfirmWrites,
-	}), nil
+	return services.mergeRequestUseCase(), nil
 }
