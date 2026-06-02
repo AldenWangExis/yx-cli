@@ -12,10 +12,6 @@ need() {
 	fi
 }
 
-can_use_gh() {
-	command -v gh >/dev/null 2>&1 && gh auth status -h github.com >/dev/null 2>&1
-}
-
 detect_asset() {
 	os="$(uname -s | tr '[:upper:]' '[:lower:]')"
 	arch="$(uname -m)"
@@ -115,18 +111,8 @@ trap cleanup EXIT INT TERM
 
 mkdir -p "$install_dir"
 mkdir -p "$tmp_dir"
-if can_use_gh; then
-	printf 'Downloading %s from %s release %s with gh\n' "$asset" "$repo" "$(release_label)"
-	if [ -n "$version" ]; then
-		gh release download "$version" --repo "$repo" --pattern "$asset" --dir "$tmp_dir" --clobber
-	else
-		gh release download --repo "$repo" --pattern "$asset" --dir "$tmp_dir" --clobber
-	fi
-else
-	need curl
-	printf 'Downloading %s\n' "$url"
-	curl -fsSL -o "$tmp" "$url"
-fi
+printf 'Downloading %s from %s release %s\n' "$asset" "$repo" "$(release_label)"
+curl -fL -o "$tmp" "$url"
 chmod +x "$tmp"
 mv "$tmp" "$target"
 
