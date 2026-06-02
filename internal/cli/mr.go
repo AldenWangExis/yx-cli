@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/AldenWangExis/yx-cli/internal/app"
-	"github.com/AldenWangExis/yx-cli/internal/auth"
-	"github.com/AldenWangExis/yx-cli/internal/config"
 	"github.com/AldenWangExis/yx-cli/internal/output"
 	"github.com/AldenWangExis/yx-cli/internal/safety"
 	"github.com/AldenWangExis/yx-cli/internal/yunxiao"
@@ -46,7 +44,7 @@ func newMRListCommand(opts Options) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			useCase, err := opts.mergeRequestUseCase()
+			useCase, err := opts.mergeRequestUseCase(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -81,7 +79,7 @@ func newMRViewCommand(opts Options) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			useCase, err := opts.mergeRequestUseCase()
+			useCase, err := opts.mergeRequestUseCase(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -115,7 +113,7 @@ func newMRCreateCommand(opts Options) *cobra.Command {
 				return err
 			}
 			input.Repo = repoID
-			useCase, err := opts.mergeRequestUseCase()
+			useCase, err := opts.mergeRequestUseCase(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -149,7 +147,7 @@ func newMRMergeCommand(opts Options) *cobra.Command {
 				return err
 			}
 			input.Repo = repoID
-			useCase, err := opts.mergeRequestUseCase()
+			useCase, err := opts.mergeRequestUseCase(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -182,39 +180,21 @@ func renderMutationResult(cmd *cobra.Command, result app.MergeRequestMutationRes
 	)
 }
 
-func (o Options) mergeRequestUseCase() (MergeRequestUseCase, error) {
+func (o Options) mergeRequestUseCase(ctx Context) (MergeRequestUseCase, error) {
 	if o.MergeRequestUseCase != nil {
 		return o.MergeRequestUseCase, nil
 	}
-	cfg, err := config.NewStore(o.ConfigPath).Load()
+	runtime, err := o.resolveRuntimeProfile(ctx)
 	if err != nil {
 		return nil, err
-	}
-	profileName := o.DefaultProfile
-	if profileName == "" {
-		profileName = cfg.Current
-	}
-	if profileName == "" {
-		profileName = "default"
-	}
-	profile, ok := cfg.Profiles[profileName]
-	if !ok {
-		return nil, fmt.Errorf("profile %q does not exist", profileName)
-	}
-	token, ok, err := auth.NewFileTokenStore(defaultTokenPath(o.ConfigPath)).Load(profileName)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, fmt.Errorf("profile %q is not logged in", profileName)
 	}
 	service := codeup.NewChangeRequestAdapter(yunxiao.ClientConfig{
-		BaseURL:        profile.Domain,
-		Token:          token,
-		OrganizationID: profile.Organization,
-		Region:         profile.Region,
+		BaseURL:        runtime.Profile.Domain,
+		Token:          runtime.Token,
+		OrganizationID: runtime.Profile.Organization,
+		Region:         runtime.Profile.Region,
 	})
 	return app.NewMergeRequestUseCase(service, safety.Environment{
-		ConfirmWrites: profile.Safety.ConfirmWrites,
+		ConfirmWrites: runtime.Profile.Safety.ConfirmWrites,
 	}), nil
 }

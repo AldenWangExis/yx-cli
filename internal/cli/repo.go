@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/AldenWangExis/yx-cli/internal/app"
-	"github.com/AldenWangExis/yx-cli/internal/auth"
 	"github.com/AldenWangExis/yx-cli/internal/config"
 	"github.com/AldenWangExis/yx-cli/internal/gitx"
 	"github.com/AldenWangExis/yx-cli/internal/output"
@@ -82,7 +81,7 @@ func newRepoCurrentCommand(opts Options) *cobra.Command {
 			}
 			return renderer.WriteTable(
 				[]string{"ID", "NAME", "PATH", "REMOTE", "SOURCE"},
-				[][]string{{current.ID, current.Name, current.Path, current.Remote, current.Source}},
+				[][]string{{string(current.ID), current.Name, string(current.Path), string(current.Remote), current.Source}},
 			)
 		},
 	}
@@ -96,7 +95,7 @@ func newRepoListCommand(opts Options) *cobra.Command {
 		Use:   "list",
 		Short: "List repositories",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			useCase, err := opts.repoUseCase()
+			useCase, err := opts.repoUseCase(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -131,7 +130,7 @@ func newRepoViewCommand(opts Options) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			useCase, err := opts.repoUseCase()
+			useCase, err := opts.repoUseCase(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -159,7 +158,7 @@ func newRepoCreateCommand(opts Options) *cobra.Command {
 		Long:    "Create a Codeup repository through Yunxiao OpenAPI.",
 		Example: "  yx repo create --name demo --path demo --visibility private --yes\n  yx repo create --name demo --dry-run",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			useCase, err := opts.repoUseCase()
+			useCase, err := opts.repoUseCase(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -187,7 +186,7 @@ func newRepoCloneCommand(opts Options) *cobra.Command {
 		Example: "  yx repo clone 6925595\n  yx repo clone 6925595 ./repo-dir",
 		Args:    cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			useCase, err := opts.repoUseCase()
+			useCase, err := opts.repoUseCase(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -226,7 +225,7 @@ func newRepoBranchListCommand(opts Options) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			useCase, err := opts.repoUseCase()
+			useCase, err := opts.repoUseCase(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -263,7 +262,7 @@ func newRepoBranchSyncCommand(opts Options) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			useCase, err := opts.repoUseCase()
+			useCase, err := opts.repoUseCase(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -307,7 +306,7 @@ func newRepoCommitListCommand(opts Options) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			useCase, err := opts.repoUseCase()
+			useCase, err := opts.repoUseCase(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -359,7 +358,7 @@ func newRepoFileViewCommand(opts Options) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			useCase, err := opts.repoUseCase()
+			useCase, err := opts.repoUseCase(ContextFromCommand(cmd))
 			if err != nil {
 				return err
 			}
@@ -404,40 +403,22 @@ func renderBranchMutation(cmd *cobra.Command, result app.BranchMutationResult) e
 	return renderer.WriteTable([]string{"NAME", "COMMIT"}, [][]string{{branch.Name, branch.CommitID}})
 }
 
-func (o Options) repoUseCase() (RepositoryUseCase, error) {
+func (o Options) repoUseCase(ctx Context) (RepositoryUseCase, error) {
 	if o.RepoUseCase != nil {
 		return o.RepoUseCase, nil
 	}
-	cfg, err := config.NewStore(o.ConfigPath).Load()
+	runtime, err := o.resolveRuntimeProfile(ctx)
 	if err != nil {
 		return nil, err
-	}
-	profileName := o.DefaultProfile
-	if profileName == "" {
-		profileName = cfg.Current
-	}
-	if profileName == "" {
-		profileName = "default"
-	}
-	profile, ok := cfg.Profiles[profileName]
-	if !ok {
-		return nil, fmt.Errorf("profile %q does not exist", profileName)
-	}
-	token, ok, err := auth.NewFileTokenStore(defaultTokenPath(o.ConfigPath)).Load(profileName)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, fmt.Errorf("profile %q is not logged in", profileName)
 	}
 	repositories := codeup.NewRepositoryAdapter(yunxiao.ClientConfig{
-		BaseURL:        profile.Domain,
-		Token:          token,
-		OrganizationID: profile.Organization,
-		Region:         profile.Region,
+		BaseURL:        runtime.Profile.Domain,
+		Token:          runtime.Token,
+		OrganizationID: runtime.Profile.Organization,
+		Region:         runtime.Profile.Region,
 	})
 	return app.NewRepoUseCase(repositories, gitx.NewRunner(), safety.Environment{
-		ConfirmWrites: profile.Safety.ConfirmWrites,
+		ConfirmWrites: runtime.Profile.Safety.ConfirmWrites,
 	}), nil
 }
 
@@ -452,45 +433,17 @@ func (o Options) repoCurrentResolver(ctx Context) (RepositoryCurrentResolver, st
 		}
 		return o.RepoCurrentResolver, profileName, ctx.Organization, nil
 	}
-	store := config.NewStore(o.ConfigPath)
-	cfg, err := store.Load()
+	runtime, err := o.resolveRuntimeProfile(ctx)
 	if err != nil {
 		return nil, "", "", err
-	}
-	profileName := ctx.Profile
-	if profileName == "" {
-		profileName = o.DefaultProfile
-	}
-	if profileName == "" {
-		profileName = cfg.Current
-	}
-	if profileName == "" {
-		profileName = "default"
-	}
-	profile, ok := cfg.Profiles[profileName]
-	if !ok {
-		return nil, "", "", fmt.Errorf("profile %q does not exist", profileName)
-	}
-	if ctx.Organization != "" {
-		profile.Organization = ctx.Organization
-	}
-	if ctx.Domain != "" {
-		profile.Domain = ctx.Domain
-	}
-	token, ok, err := auth.NewFileTokenStore(defaultTokenPath(o.ConfigPath)).Load(profileName)
-	if err != nil {
-		return nil, "", "", err
-	}
-	if !ok {
-		return nil, "", "", fmt.Errorf("profile %q is not logged in", profileName)
 	}
 	repositories := codeup.NewRepositoryAdapter(yunxiao.ClientConfig{
-		BaseURL:        profile.Domain,
-		Token:          token,
-		OrganizationID: profile.Organization,
-		Region:         profile.Region,
+		BaseURL:        runtime.Profile.Domain,
+		Token:          runtime.Token,
+		OrganizationID: runtime.Profile.Organization,
+		Region:         runtime.Profile.Region,
 	})
-	return app.NewRepositoryIdentityResolver(repositories, gitx.NewRunner(), configRepositoryIdentityCache{store: store}), profileName, profile.Organization, nil
+	return app.NewRepositoryIdentityResolver(repositories, gitx.NewRunner(), configRepositoryIdentityCache{store: runtime.Store}), runtime.Name, runtime.Profile.Organization, nil
 }
 
 type configRepositoryIdentityCache struct {
@@ -511,10 +464,10 @@ func (c configRepositoryIdentityCache) LookupRepositoryIdentity(profileName, key
 		return app.CurrentRepository{}, false, nil
 	}
 	return app.CurrentRepository{
-		ID:     identity.ID,
+		ID:     app.RepositoryID(identity.ID),
 		Name:   identity.Name,
-		Path:   identity.Path,
-		Remote: identity.Remote,
+		Path:   app.RepositoryPath(identity.Path),
+		Remote: app.GitRemoteName(identity.Remote),
 	}, true, nil
 }
 
@@ -528,10 +481,10 @@ func (c configRepositoryIdentityCache) StoreRepositoryIdentity(profileName, key 
 		profile.RepoIdentityMap = map[string]config.RepoIdentity{}
 	}
 	profile.RepoIdentityMap[key] = config.RepoIdentity{
-		ID:        repo.ID,
+		ID:        string(repo.ID),
 		Name:      repo.Name,
-		Path:      repo.Path,
-		Remote:    repo.Remote,
+		Path:      string(repo.Path),
+		Remote:    string(repo.Remote),
 		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 	cfg.Profiles[profileName] = profile
