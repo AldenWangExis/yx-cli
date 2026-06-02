@@ -132,6 +132,154 @@ func TestAdapterListPipelineRunsFallsBackToRunsPath(t *testing.T) {
 	}
 }
 
+func TestAdapterListPipelineRunsDoesNotFallbackOnUnauthorized(t *testing.T) {
+	var fallbackRequested bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/runs":
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"errorMessage":"unauthorized"}`))
+		case "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/pipelineRuns":
+			fallbackRequested = true
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`[]`))
+		default:
+			t.Fatalf("unexpected request: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	adapter := NewAdapter(yunxiao.ClientConfig{BaseURL: server.URL, Token: "token-1", OrganizationID: "org-1", Region: "center"})
+
+	_, err := adapter.ListPipelineRuns(context.Background(), app.PipelineRunListInput{PipelineID: "pipe1"})
+	if err == nil {
+		t.Fatal("expected unauthorized error")
+	}
+	if fallbackRequested {
+		t.Fatal("expected unauthorized list response to skip fallback")
+	}
+}
+
+func TestAdapterGetPipelineRunFallbacksOnlyOnNotFound(t *testing.T) {
+	t.Run("falls back on not found", func(t *testing.T) {
+		var fallbackRequested bool
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			switch r.URL.Path {
+			case "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/runs/run1":
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"errorMessage":"not found"}`))
+			case "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/pipelineRuns/run1":
+				fallbackRequested = true
+				_, _ = w.Write([]byte(`{"pipelineRun":{"pipelineRunId":789,"pipelineId":123,"status":"SUCCESS"}}`))
+			default:
+				t.Fatalf("unexpected request: %s", r.URL.Path)
+			}
+		}))
+		defer server.Close()
+		adapter := NewAdapter(yunxiao.ClientConfig{BaseURL: server.URL, Token: "token-1", OrganizationID: "org-1", Region: "center"})
+
+		run, err := adapter.GetPipelineRun(context.Background(), app.PipelineRunGetInput{PipelineID: "pipe1", RunID: "run1"})
+		if err != nil {
+			t.Fatalf("expected fallback run to succeed, got: %v", err)
+		}
+		if !fallbackRequested {
+			t.Fatal("expected fallback run endpoint to be requested")
+		}
+		if run.ID != "789" || run.PipelineID != "123" || run.Status != "SUCCESS" {
+			t.Fatalf("unexpected fallback run: %+v", run)
+		}
+	})
+
+	t.Run("does not fall back on server error", func(t *testing.T) {
+		var fallbackRequested bool
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			switch r.URL.Path {
+			case "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/runs/run1":
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte(`{"errorMessage":"temporary failure"}`))
+			case "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/pipelineRuns/run1":
+				fallbackRequested = true
+				_, _ = w.Write([]byte(`{"pipelineRun":{"pipelineRunId":789}}`))
+			default:
+				t.Fatalf("unexpected request: %s", r.URL.Path)
+			}
+		}))
+		defer server.Close()
+		adapter := NewAdapter(yunxiao.ClientConfig{BaseURL: server.URL, Token: "token-1", OrganizationID: "org-1", Region: "center"})
+
+		_, err := adapter.GetPipelineRun(context.Background(), app.PipelineRunGetInput{PipelineID: "pipe1", RunID: "run1"})
+		if err == nil {
+			t.Fatal("expected server error")
+		}
+		if fallbackRequested {
+			t.Fatal("expected server error response to skip fallback")
+		}
+	})
+}
+
+func TestAdapterGetPipelineJobRunLogFallsBackWhenStepsNotFound(t *testing.T) {
+	var fallbackRequested bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/pipelineRuns/run1/jobs/job1/steps":
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"errorMessage":"not found"}`))
+		case "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/runs/run1/job/job1/log":
+			fallbackRequested = true
+			_, _ = w.Write([]byte(`{"content":"legacy log","last":10,"more":false}`))
+		case "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/pipelineRuns/run1/jobs/job1/step/log":
+			t.Fatal("step log endpoint should not be requested when steps are missing")
+		default:
+			t.Fatalf("unexpected request: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	adapter := NewAdapter(yunxiao.ClientConfig{BaseURL: server.URL, Token: "token-1", OrganizationID: "org-1", Region: "center"})
+
+	log, err := adapter.GetPipelineJobRunLog(context.Background(), app.PipelineJobRunLogInput{PipelineID: "pipe1", RunID: "run1", JobID: "job1"})
+	if err != nil {
+		t.Fatalf("expected fallback log to succeed, got: %v", err)
+	}
+	if !fallbackRequested {
+		t.Fatal("expected legacy log endpoint to be requested")
+	}
+	if log.Content != "legacy log" || log.Last != 10 || log.More {
+		t.Fatalf("unexpected fallback log: %+v", log)
+	}
+}
+
+func TestAdapterGetPipelineJobRunLogDoesNotFallbackWhenStepLogFails(t *testing.T) {
+	var fallbackRequested bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/pipelineRuns/run1/jobs/job1/steps":
+			_, _ = w.Write([]byte(`{"buildId":99,"steps":[{"stepIndex":1,"stepName":"Run tests"}]}`))
+		case "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/pipelineRuns/run1/jobs/job1/step/log":
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"errorMessage":"log backend failed"}`))
+		case "/oapi/v1/flow/organizations/org-1/pipelines/pipe1/runs/run1/job/job1/log":
+			fallbackRequested = true
+			_, _ = w.Write([]byte(`{"content":"legacy log"}`))
+		default:
+			t.Fatalf("unexpected request: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	adapter := NewAdapter(yunxiao.ClientConfig{BaseURL: server.URL, Token: "token-1", OrganizationID: "org-1", Region: "center"})
+
+	_, err := adapter.GetPipelineJobRunLog(context.Background(), app.PipelineJobRunLogInput{PipelineID: "pipe1", RunID: "run1", JobID: "job1"})
+	if err == nil {
+		t.Fatal("expected step log error")
+	}
+	if fallbackRequested {
+		t.Fatal("expected step log error to skip legacy fallback")
+	}
+}
+
 func TestAdapterDecodesBuildProcessNodesFromJobSteps(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
