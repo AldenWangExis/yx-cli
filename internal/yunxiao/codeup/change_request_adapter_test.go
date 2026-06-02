@@ -14,6 +14,7 @@ import (
 func TestChangeRequestAdapterListGetCreateMerge(t *testing.T) {
 	var createBody string
 	var mergeCalls int
+	var closeCalls int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("x-yunxiao-token") != "token-1" {
 			t.Fatalf("missing token header")
@@ -33,6 +34,9 @@ func TestChangeRequestAdapterListGetCreateMerge(t *testing.T) {
 		case r.Method == http.MethodPost && r.URL.Path == "/oapi/v1/codeup/organizations/org-1/repositories/repo-1/changeRequests/11/merge":
 			mergeCalls++
 			_, _ = w.Write([]byte(`{"id":11,"title":"Add feature","state":"merged","sourceBranch":"feat","targetBranch":"main"}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/oapi/v1/codeup/organizations/org-1/repositories/repo-1/changeRequests/11/close":
+			closeCalls++
+			_, _ = w.Write([]byte(`{"id":11,"title":"Add feature","state":"closed","sourceBranch":"feat","targetBranch":"main"}`))
 		default:
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
@@ -87,6 +91,17 @@ func TestChangeRequestAdapterListGetCreateMerge(t *testing.T) {
 	}
 	if mergeCalls != 1 {
 		t.Fatalf("expected one merge POST, got %d", mergeCalls)
+	}
+
+	closed, err := adapter.CloseMergeRequest(context.Background(), "repo-1", "11")
+	if err != nil {
+		t.Fatalf("expected close to succeed, got: %v", err)
+	}
+	if closed.State != "closed" {
+		t.Fatalf("expected closed state, got %q", closed.State)
+	}
+	if closeCalls != 1 {
+		t.Fatalf("expected one close POST, got %d", closeCalls)
 	}
 }
 

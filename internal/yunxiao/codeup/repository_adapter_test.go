@@ -122,6 +122,7 @@ func TestRepositoryAdapterGetRepositoryRegionEndpoint(t *testing.T) {
 
 func TestRepositoryAdapterRepositoryOperations(t *testing.T) {
 	var createBody string
+	var deleteCalls int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("x-yunxiao-token") != "token-1" {
 			t.Fatalf("missing token header")
@@ -150,6 +151,9 @@ func TestRepositoryAdapterRepositoryOperations(t *testing.T) {
 				t.Fatalf("unexpected file query: %s", r.URL.RawQuery)
 			}
 			_, _ = w.Write([]byte(`{"filePath":"test.py","ref":"master","encoding":"base64","content":"cHJpbnQoMSkK"}`))
+		case r.Method == http.MethodDelete && r.URL.Path == "/oapi/v1/codeup/organizations/org-1/repositories/2813490":
+			deleteCalls++
+			w.WriteHeader(http.StatusNoContent)
 		default:
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
 		}
@@ -201,6 +205,14 @@ func TestRepositoryAdapterRepositoryOperations(t *testing.T) {
 	}
 	if file.Content != "print(1)\n" {
 		t.Fatalf("unexpected file: %+v", file)
+	}
+
+	deleted, err := adapter.DeleteRepository(context.Background(), "2813490")
+	if err != nil {
+		t.Fatalf("expected delete, got: %v", err)
+	}
+	if deleted.ID != "2813490" || deleteCalls != 1 {
+		t.Fatalf("unexpected delete result=%+v calls=%d", deleted, deleteCalls)
 	}
 }
 

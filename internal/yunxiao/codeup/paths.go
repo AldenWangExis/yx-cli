@@ -62,3 +62,7 @@ func (p codeupPaths) changeRequestPath(repo, id string) string {
 func (p codeupPaths) changeRequestMergePath(repo, id string) string {
 	return p.changeRequestPath(repo, id) + "/merge"
 }
+
+func (p codeupPaths) changeRequestClosePath(repo, id string) string {
+	return p.changeRequestPath(repo, id) + "/close"
+}

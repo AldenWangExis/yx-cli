@@ -14,6 +14,7 @@ type MergeRequestUseCase interface {
 	GetMergeRequest(ctx context.Context, repo, id string) (app.MergeRequestDetail, error)
 	CreateMergeRequest(ctx context.Context, input app.CreateMergeRequestInput) (app.MergeRequestMutationResult, error)
 	MergeMergeRequest(ctx context.Context, input app.MergeMergeRequestInput) (app.MergeRequestMutationResult, error)
+	CloseMergeRequest(ctx context.Context, input app.CloseMergeRequestInput) (app.MergeRequestMutationResult, error)
 }
 
 func newMergeRequestCommand(opts Options, use string) *cobra.Command {
@@ -21,12 +22,13 @@ func newMergeRequestCommand(opts Options, use string) *cobra.Command {
 		Use:     use,
 		Short:   "Manage Codeup merge requests",
 		Long:    "Manage Codeup merge requests for a repository.",
-		Example: fmt.Sprintf("  yx %s list\n  yx %s list --repo <repo>\n  yx %s view <mr-id>\n  yx %s create --source feat/a --target master --title \"Add feature\" --dry-run\n  yx %s merge <mr-id> --yes", use, use, use, use, use),
+		Example: fmt.Sprintf("  yx %s list\n  yx %s list --repo <repo>\n  yx %s view <mr-id>\n  yx %s create --source feat/a --target master --title \"Add feature\" --dry-run\n  yx %s merge <mr-id> --yes\n  yx %s close <mr-id> --dry-run", use, use, use, use, use, use),
 	}
 	cmd.AddCommand(newMRListCommand(opts))
 	cmd.AddCommand(newMRViewCommand(opts))
 	cmd.AddCommand(newMRCreateCommand(opts))
 	cmd.AddCommand(newMRMergeCommand(opts))
+	cmd.AddCommand(newMRCloseCommand(opts))
 	return cmd
 }
 
@@ -149,6 +151,37 @@ func newMRMergeCommand(opts Options) *cobra.Command {
 				return err
 			}
 			result, err := useCase.MergeMergeRequest(cmd.Context(), input)
+			if err != nil {
+				return err
+			}
+			return renderMutationResult(cmd, result)
+		},
+	}
+	cmd.Flags().StringVar(&input.Repo, "repo", "", "repository identifier")
+	cmd.Flags().BoolVar(&input.DryRun, "dry-run", false, "show intended operation without writing")
+	cmd.Flags().BoolVar(&input.Yes, "yes", false, "skip confirmation")
+	return cmd
+}
+
+func newMRCloseCommand(opts Options) *cobra.Command {
+	var input app.CloseMergeRequestInput
+	cmd := &cobra.Command{
+		Use:     "close <mr-id>",
+		Short:   "Close a merge request",
+		Example: "  yx mr close 1 --dry-run\n  yx pr close 1 --repo 6925595 --yes",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			input.ID = args[0]
+			repoID, err := resolveRepositoryID(cmd, opts, input.Repo)
+			if err != nil {
+				return err
+			}
+			input.Repo = repoID
+			useCase, err := opts.mergeRequestUseCase(ContextFromCommand(cmd))
+			if err != nil {
+				return err
+			}
+			result, err := useCase.CloseMergeRequest(cmd.Context(), input)
 			if err != nil {
 				return err
 			}

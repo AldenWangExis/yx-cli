@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/AldenWangExis/yx-cli/internal/app"
@@ -47,6 +48,10 @@ func TestMRViewCreateMergeContracts(t *testing.T) {
 			DryRun:  true,
 			Summary: "merge merge request",
 		},
+		closed: app.MergeRequestMutationResult{
+			DryRun:  true,
+			Summary: "close merge request",
+		},
 	}
 	opts := Options{ConfigPath: filepath.Join(t.TempDir(), "config.yaml"), MergeRequestUseCase: mrs}
 
@@ -79,6 +84,18 @@ func TestMRViewCreateMergeContracts(t *testing.T) {
 	if !mrs.mergeInput.DryRun || !mrs.mergeInput.Yes || mrs.mergeInput.ID != "1" {
 		t.Fatalf("unexpected merge input: %+v", mrs.mergeInput)
 	}
+
+	stdout, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts),
+		"pr", "close", "1", "--repo", "repo-1", "--dry-run")
+	if err != nil {
+		t.Fatalf("expected pr close dry-run to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	if !strings.Contains(stdout, "dry-run: close merge request") {
+		t.Fatalf("expected dry-run close output, got:\n%s", stdout)
+	}
+	if !mrs.closeInput.DryRun || mrs.closeInput.ID != "1" || mrs.closeInput.Repo != "repo-1" {
+		t.Fatalf("unexpected close input: %+v", mrs.closeInput)
+	}
 }
 
 func TestMRCommandsDefaultToCurrentRepository(t *testing.T) {
@@ -91,6 +108,10 @@ func TestMRCommandsDefaultToCurrentRepository(t *testing.T) {
 		merged: app.MergeRequestMutationResult{
 			DryRun:  true,
 			Summary: "merge merge request",
+		},
+		closed: app.MergeRequestMutationResult{
+			DryRun:  true,
+			Summary: "close merge request",
 		},
 	}
 	resolver := &fakeRepoCurrentResolver{
@@ -125,8 +146,16 @@ func TestMRCommandsDefaultToCurrentRepository(t *testing.T) {
 	if mrs.mergeInput.Repo != "6925918" {
 		t.Fatalf("expected merge to use current repo id, got %+v", mrs.mergeInput)
 	}
-	if resolver.calls != 3 {
-		t.Fatalf("expected current repo resolver to be called three times, got %d", resolver.calls)
+
+	_, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts), "mr", "close", "1", "--dry-run")
+	if err != nil {
+		t.Fatalf("expected mr close to default to current repo, got error: %v stderr=%s", err, stderr)
+	}
+	if mrs.closeInput.Repo != "6925918" {
+		t.Fatalf("expected close to use current repo id, got %+v", mrs.closeInput)
+	}
+	if resolver.calls != 4 {
+		t.Fatalf("expected current repo resolver to be called four times, got %d", resolver.calls)
 	}
 }
 
@@ -172,10 +201,12 @@ type fakeMergeRequestUseCase struct {
 	detail      app.MergeRequestDetail
 	created     app.MergeRequestMutationResult
 	merged      app.MergeRequestMutationResult
+	closed      app.MergeRequestMutationResult
 	listCalls   int
 	listRepo    string
 	createInput app.CreateMergeRequestInput
 	mergeInput  app.MergeMergeRequestInput
+	closeInput  app.CloseMergeRequestInput
 }
 
 func (u *fakeMergeRequestUseCase) ListMergeRequests(ctx context.Context, repo string) ([]app.MergeRequestListItem, error) {
@@ -196,4 +227,9 @@ func (u *fakeMergeRequestUseCase) CreateMergeRequest(ctx context.Context, input 
 func (u *fakeMergeRequestUseCase) MergeMergeRequest(ctx context.Context, input app.MergeMergeRequestInput) (app.MergeRequestMutationResult, error) {
 	u.mergeInput = input
 	return u.merged, nil
+}
+
+func (u *fakeMergeRequestUseCase) CloseMergeRequest(ctx context.Context, input app.CloseMergeRequestInput) (app.MergeRequestMutationResult, error) {
+	u.closeInput = input
+	return u.closed, nil
 }

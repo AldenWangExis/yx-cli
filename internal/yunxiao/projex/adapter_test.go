@@ -15,6 +15,7 @@ func TestAdapterProjectsAndWorkitems(t *testing.T) {
 	var projectCreateBody string
 	var createBody string
 	var updateBody string
+	var deleteCalls int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("x-yunxiao-token") != "token-1" {
 			t.Fatalf("missing token header")
@@ -49,6 +50,9 @@ func TestAdapterProjectsAndWorkitems(t *testing.T) {
 			body := make([]byte, r.ContentLength)
 			_, _ = r.Body.Read(body)
 			updateBody = string(body)
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodDelete && r.URL.Path == "/oapi/v1/projex/organizations/org-1/workitems/w1":
+			deleteCalls++
 			w.WriteHeader(http.StatusNoContent)
 		default:
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
@@ -132,6 +136,14 @@ func TestAdapterProjectsAndWorkitems(t *testing.T) {
 	}
 	if !strings.Contains(updateBody, `"status":"done"`) || !strings.Contains(updateBody, `"assignedTo":"u2"`) {
 		t.Fatalf("unexpected update body: %s", updateBody)
+	}
+
+	deleted, err := adapter.DeleteWorkitem(context.Background(), "w1")
+	if err != nil {
+		t.Fatalf("expected delete, got: %v", err)
+	}
+	if deleted.ID != "w1" || deleteCalls != 1 {
+		t.Fatalf("unexpected deleted item=%+v calls=%d", deleted, deleteCalls)
 	}
 }
 

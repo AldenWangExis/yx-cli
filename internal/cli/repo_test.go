@@ -287,6 +287,39 @@ func TestRepoCloneCallsUseCase(t *testing.T) {
 	}
 }
 
+func TestRepoDeletePassesSafetyFlagsAndDefaultsToCurrentRepository(t *testing.T) {
+	repos := &fakeRepoUseCase{
+		deleted: app.RepositoryMutationResult{DryRun: true, Summary: "delete repository 6925918"},
+	}
+	resolver := &fakeRepoCurrentResolver{
+		current: app.CurrentRepository{ID: "6925918", Name: "yx-cli", Path: "org/yx-cli"},
+	}
+	opts := Options{
+		ConfigPath:          filepath.Join(t.TempDir(), "config.yaml"),
+		RepoUseCase:         repos,
+		RepoCurrentResolver: resolver,
+	}
+
+	stdout, stderr, err := executeCommand(t, NewRootCommandWithOptions(opts), "repo", "delete", "--dry-run")
+	if err != nil {
+		t.Fatalf("expected repo delete dry-run to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	if !strings.Contains(stdout, "dry-run: delete repository 6925918") {
+		t.Fatalf("expected dry-run output, got:\n%s", stdout)
+	}
+	if repos.deleteInput.Repo != "6925918" || !repos.deleteInput.DryRun || repos.deleteInput.Yes {
+		t.Fatalf("unexpected delete input: %+v", repos.deleteInput)
+	}
+
+	_, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts), "repo", "delete", "explicit", "--yes")
+	if err != nil {
+		t.Fatalf("expected repo delete --yes to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	if repos.deleteInput.Repo != "explicit" || !repos.deleteInput.Yes {
+		t.Fatalf("unexpected explicit delete input: %+v", repos.deleteInput)
+	}
+}
+
 func TestRepoViewRequiresRepositoryArgument(t *testing.T) {
 	_, stderr, err := executeCommand(t, NewRootCommandWithOptions(Options{
 		ConfigPath:  filepath.Join(t.TempDir(), "config.yaml"),
@@ -307,6 +340,7 @@ type fakeRepoUseCase struct {
 	branches         []app.BranchListItem
 	commits          []app.CommitListItem
 	file             app.RepositoryFile
+	deleted          app.RepositoryMutationResult
 	cloneID          string
 	cloneDestination string
 	createInput      app.CreateRepositoryInput
@@ -315,6 +349,7 @@ type fakeRepoUseCase struct {
 	commitInput      app.CommitListInput
 	fileInput        app.FileGetInput
 	syncInput        app.BranchSyncInput
+	deleteInput      app.DeleteRepositoryInput
 }
 
 type fakeRepoCurrentResolver struct {
@@ -368,4 +403,9 @@ func (u *fakeRepoUseCase) ListCommits(ctx context.Context, input app.CommitListI
 func (u *fakeRepoUseCase) GetFile(ctx context.Context, input app.FileGetInput) (app.RepositoryFile, error) {
 	u.fileInput = input
 	return u.file, nil
+}
+
+func (u *fakeRepoUseCase) DeleteRepository(ctx context.Context, input app.DeleteRepositoryInput) (app.RepositoryMutationResult, error) {
+	u.deleteInput = input
+	return u.deleted, nil
 }
