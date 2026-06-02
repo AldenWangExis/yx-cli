@@ -7,6 +7,7 @@ import (
 	"github.com/AldenWangExis/yx-cli/internal/yunxiao"
 	"github.com/AldenWangExis/yx-cli/internal/yunxiao/codeup"
 	"github.com/AldenWangExis/yx-cli/internal/yunxiao/flow"
+	"github.com/AldenWangExis/yx-cli/internal/yunxiao/platform"
 	"github.com/AldenWangExis/yx-cli/internal/yunxiao/projex"
 )
 
@@ -60,6 +61,10 @@ func (s runtimeServices) flowAdapter() *flow.Adapter {
 	return flow.NewAdapter(s.clientConfig())
 }
 
+func (s runtimeServices) platformAdapter() *platform.Adapter {
+	return platform.NewAdapter(s.clientConfig())
+}
+
 func (s runtimeServices) repoUseCase() RepositoryUseCase {
 	return app.NewRepoUseCase(s.repositoryAdapter(), gitx.NewRunner(), s.safetyEnvironment())
 }
@@ -83,4 +88,8 @@ func (s runtimeServices) workitemUseCase() WorkitemUseCase {
 
 func (s runtimeServices) pipelineUseCase() PipelineUseCase {
 	return app.NewPipelineUseCase(s.flowAdapter(), s.safetyEnvironment())
+}
+
+func (s runtimeServices) organizationUseCase() OrganizationUseCase {
+	return app.NewOrganizationUseCase(s.platformAdapter())
 }

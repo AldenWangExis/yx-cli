@@ -15,7 +15,7 @@ func NewRootCommandWithOptions(opts Options) *cobra.Command {
 		Use:          "yx",
 		Short:        "Yunxiao command line client",
 		Long:         "yx is a Yunxiao command line client.",
-		Example:      "  yx auth login\n  yx repo list\n  yx repo view <repo>\n  yx mr list --repo <repo>\n  yx pipeline list",
+		Example:      "  yx auth login\n  yx org list\n  yx repo list\n  yx repo view <repo>\n  yx mr list --repo <repo>\n  yx pipeline list",
 		Version:      versionString(),
 		SilenceUsage: true,
 	}
@@ -27,6 +27,7 @@ func NewRootCommandWithOptions(opts Options) *cobra.Command {
 	cmd.PersistentFlags().Bool("verbose", false, "write verbose diagnostics")
 	cmd.AddCommand(newConfigCommand(opts))
 	cmd.AddCommand(newAuthCommand(opts))
+	cmd.AddCommand(newOrganizationCommand(opts))
 	cmd.AddCommand(newRepoCommand(opts))
 	cmd.AddCommand(newMergeRequestCommand(opts, "mr"))
 	cmd.AddCommand(newMergeRequestCommand(opts, "pr"))
