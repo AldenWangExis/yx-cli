@@ -167,8 +167,18 @@ func TestRepoCurrentBuildsDefaultResolverFromConfigTokenGitRemoteAndCaches(t *te
 	if err != nil {
 		t.Fatalf("expected config to load after cache write, got: %v", err)
 	}
-	if loaded.Profiles["default"].RepoIdentityMap["org-1/yx-cli"].ID != "6925918" {
+	var cachedIdentity config.RepoIdentity
+	for _, identity := range loaded.Profiles["default"].RepoIdentityMap {
+		if identity.Path == "org-1/yx-cli" {
+			cachedIdentity = identity
+			break
+		}
+	}
+	if cachedIdentity.ID != "6925918" {
 		t.Fatalf("expected repo identity cache, got %+v", loaded.Profiles["default"].RepoIdentityMap)
+	}
+	if cachedIdentity.Domain == "" || cachedIdentity.Organization != "org-1" || cachedIdentity.Region != "center" {
+		t.Fatalf("expected scoped repo identity cache, got %+v", cachedIdentity)
 	}
 
 	stdout, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts),
@@ -184,6 +194,99 @@ func TestRepoCurrentBuildsDefaultResolverFromConfigTokenGitRemoteAndCaches(t *te
 	}
 	if requests != 1 {
 		t.Fatalf("expected one API request because second call uses cache, got %d", requests)
+	}
+}
+
+func TestRepoCurrentCacheIsScopedByDomain(t *testing.T) {
+	var firstRequests int
+	firstServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		firstRequests++
+		if r.Header.Get("x-yunxiao-token") != "token-1" {
+			t.Fatalf("missing token header")
+		}
+		if r.URL.Path != "/oapi/v1/codeup/organizations/org-1/repositories" {
+			t.Fatalf("unexpected first path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"id":111,"name":"yx-cli","pathWithNamespace":"org-1/yx-cli"}]`))
+	}))
+	defer firstServer.Close()
+
+	var secondRequests int
+	secondServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		secondRequests++
+		if r.Header.Get("x-yunxiao-token") != "token-1" {
+			t.Fatalf("missing token header")
+		}
+		if r.URL.Path != "/oapi/v1/codeup/organizations/org-1/repositories" {
+			t.Fatalf("unexpected second path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"id":222,"name":"yx-cli","pathWithNamespace":"org-1/yx-cli"}]`))
+	}))
+	defer secondServer.Close()
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	store := config.NewStore(configPath)
+	if err := store.Save(config.Config{
+		Current: "default",
+		Profiles: map[string]config.Profile{
+			"default": {
+				Domain:       firstServer.URL,
+				Organization: "org-1",
+				Region:       "center",
+			},
+		},
+	}); err != nil {
+		t.Fatalf("failed to save config: %v", err)
+	}
+	if err := auth.NewFileTokenStore(filepath.Join(dir, "tokens.yaml")).Save("default", "token-1"); err != nil {
+		t.Fatalf("failed to save token: %v", err)
+	}
+
+	repoDir := filepath.Join(dir, "repo")
+	runGit(t, dir, "init", "repo")
+	runGit(t, repoDir, "remote", "add", "origin", "git@codeup.aliyun.com:org-1/yx-cli.git")
+
+	opts := Options{ConfigPath: configPath, WorkDir: repoDir}
+	stdout, stderr, err := executeCommand(t, NewRootCommandWithOptions(opts),
+		"--json", "repo", "current", "--refresh")
+	if err != nil {
+		t.Fatalf("expected first repo current to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	var current app.CurrentRepository
+	if err := json.Unmarshal([]byte(stdout), &current); err != nil {
+		t.Fatalf("expected JSON current repo, got error: %v output=%s", err, stdout)
+	}
+	if current.ID != "111" || current.Source != "api" {
+		t.Fatalf("unexpected first current repo: %+v", current)
+	}
+
+	cfg, err := store.Load()
+	if err != nil {
+		t.Fatalf("expected config load, got: %v", err)
+	}
+	profile := cfg.Profiles["default"]
+	profile.Domain = secondServer.URL
+	cfg.Profiles["default"] = profile
+	if err := store.Save(cfg); err != nil {
+		t.Fatalf("failed to switch domain: %v", err)
+	}
+
+	stdout, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts),
+		"--json", "repo", "current")
+	if err != nil {
+		t.Fatalf("expected second repo current to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	if err := json.Unmarshal([]byte(stdout), &current); err != nil {
+		t.Fatalf("expected JSON current repo, got error: %v output=%s", err, stdout)
+	}
+	if current.ID != "222" || current.Source != "api" {
+		t.Fatalf("expected domain-scoped cache miss and second API result, got %+v", current)
+	}
+	if firstRequests != 1 || secondRequests != 1 {
+		t.Fatalf("expected one request per domain, got first=%d second=%d", firstRequests, secondRequests)
 	}
 }
 

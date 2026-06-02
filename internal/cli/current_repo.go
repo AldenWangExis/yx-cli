@@ -19,7 +19,7 @@ func resolveRepositoryID(cmd *cobra.Command, opts Options, repo string) (string,
 }
 
 func resolveCurrentRepository(cmd *cobra.Command, opts Options) (app.CurrentRepository, error) {
-	resolver, profileName, organization, err := opts.repoCurrentResolver(ContextFromCommand(cmd))
+	resolver, runtimeContext, err := opts.repoCurrentResolver(ContextFromCommand(cmd))
 	if err != nil {
 		return app.CurrentRepository{}, err
 	}
@@ -28,8 +28,10 @@ func resolveCurrentRepository(cmd *cobra.Command, opts Options) (app.CurrentRepo
 		return app.CurrentRepository{}, err
 	}
 	return resolver.CurrentRepository(cmd.Context(), app.CurrentRepositoryInput{
-		ProfileName:  profileName,
-		Organization: organization,
+		ProfileName:  runtimeContext.ProfileName,
+		Domain:       runtimeContext.Domain,
+		Organization: runtimeContext.Organization,
+		Region:       runtimeContext.Region,
 		WorkDir:      workDir,
 	})
 }

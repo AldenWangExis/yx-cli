@@ -38,7 +38,12 @@ func TestRepositoryIdentityResolverResolvesCurrentRepositoryFromAPIAndCachesIt(t
 	if service.listCalls != 1 {
 		t.Fatalf("expected one API list call, got %d", service.listCalls)
 	}
-	if cached, ok := cache.items["default|68086322e3a71588779435e0/yx-cli"]; !ok || cached.ID != "6925918" {
+	cacheKey := RepositoryIdentityCacheKey{
+		ProfileName:  "default",
+		Organization: "68086322e3a71588779435e0",
+		Path:         "68086322e3a71588779435e0/yx-cli",
+	}
+	if cached, ok := cache.items[cacheKey.ProfileName+"|"+cacheKey.StorageKey()]; !ok || cached.ID != "6925918" {
 		t.Fatalf("expected repository identity to be cached, got %+v", cache.items)
 	}
 }
@@ -86,7 +91,8 @@ func TestRepositoryIdentityResolverUsesCacheUnlessRefreshIsRequested(t *testing.
 		list: []RepositoryListItem{{ID: "api-id", Name: "yx-cli", Path: "org/yx-cli"}},
 	}
 	cache := newFakeRepositoryIdentityCache()
-	cache.items["default|org/yx-cli"] = CurrentRepository{ID: "cached-id", Name: "yx-cli", Path: "org/yx-cli"}
+	cacheKey := RepositoryIdentityCacheKey{ProfileName: "default", Organization: "org", Path: "org/yx-cli"}
+	cache.items[cacheKey.ProfileName+"|"+cacheKey.StorageKey()] = CurrentRepository{ID: "cached-id", Name: "yx-cli", Path: "org/yx-cli"}
 	resolver := NewRepositoryIdentityResolver(service, fakeGitRemoteReader{
 		remotes: []gitx.Remote{{Name: "origin", URL: "git@codeup.aliyun.com:org/yx-cli.git"}},
 	}, cache)
@@ -199,15 +205,15 @@ func newFakeRepositoryIdentityCache() *fakeRepositoryIdentityCache {
 	return &fakeRepositoryIdentityCache{items: map[string]CurrentRepository{}}
 }
 
-func (c *fakeRepositoryIdentityCache) LookupRepositoryIdentity(profileName, key string) (CurrentRepository, bool, error) {
-	item, ok := c.items[profileName+"|"+key]
+func (c *fakeRepositoryIdentityCache) LookupRepositoryIdentity(key RepositoryIdentityCacheKey) (CurrentRepository, bool, error) {
+	item, ok := c.items[key.ProfileName+"|"+key.StorageKey()]
 	return item, ok, nil
 }
 
-func (c *fakeRepositoryIdentityCache) StoreRepositoryIdentity(profileName, key string, repo CurrentRepository) error {
+func (c *fakeRepositoryIdentityCache) StoreRepositoryIdentity(key RepositoryIdentityCacheKey, repo CurrentRepository) error {
 	if c.storeErr != nil {
 		return c.storeErr
 	}
-	c.items[profileName+"|"+key] = repo
+	c.items[key.ProfileName+"|"+key.StorageKey()] = repo
 	return nil
 }
