@@ -12,6 +12,8 @@ curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/main/scripts/i
 
 The installer downloads the latest GitHub Release by default, writes `yx` to `~/.local/bin`, adds that directory to your shell profile when needed, and prints the restart or `source` command required for the current terminal.
 
+The installer supports macOS arm64, Linux amd64, and Linux arm64. Ubuntu users can use the same install command; make sure `curl` is installed first.
+
 Install a specific release when you need a pinned version:
 
 ```bash
@@ -145,6 +147,8 @@ make build
 Pushes to `main` run tests. Tags matching `v*` run tests, build release binaries, and create or update a GitHub Release with these assets:
 
 - `yx-darwin-arm64`
+- `yx-linux-amd64`
+- `yx-linux-arm64`
 - `yx-windows-amd64.exe`
 
 Release a new version:

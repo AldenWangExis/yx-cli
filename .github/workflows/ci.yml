@@ -43,6 +43,14 @@ jobs:
             goos: darwin
             goarch: arm64
             output: yx-darwin-arm64
+          - name: linux-amd64
+            goos: linux
+            goarch: amd64
+            output: yx-linux-amd64
+          - name: linux-arm64
+            goos: linux
+            goarch: arm64
+            output: yx-linux-arm64
           - name: windows-amd64
             goos: windows
             goarch: amd64

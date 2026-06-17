@@ -32,3 +32,5 @@ go.work.sum
 
 # Local planning docs
 /docs/
+!/docs/
+!/docs/linux-support-implementation.md

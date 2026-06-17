@@ -18,10 +18,12 @@ detect_asset() {
 
 	case "$os" in
 	darwin) os="darwin" ;;
+	linux) os="linux" ;;
 	*) printf 'yx install: unsupported OS: %s\n' "$os" >&2; exit 1 ;;
 	esac
 
 	case "$arch" in
+	x86_64|amd64) arch="amd64" ;;
 	arm64|aarch64) arch="arm64" ;;
 	*) printf 'yx install: unsupported architecture: %s\n' "$arch" >&2; exit 1 ;;
 	esac
