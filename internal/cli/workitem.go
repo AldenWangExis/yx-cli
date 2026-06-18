@@ -87,7 +87,7 @@ func newWorkitemCommand(opts Options, use string) *cobra.Command {
 		Use:     use,
 		Short:   "Manage Yunxiao work items",
 		Long:    "Manage Yunxiao work items. The issue command is an alias over workitem.",
-		Example: fmt.Sprintf("  yx %s list\n  yx %s list --project <project-id>\n  yx %s view <workitem-id>\n  yx %s create --project <project-id> --type Task --title \"Do work\" --description \"Details\" --dry-run\n  yx %s update <workitem-id> --status done --dry-run\n  yx %s delete <workitem-id> --dry-run", use, use, use, use, use, use),
+		Example: fmt.Sprintf("  yx %s list\n  yx %s list --project <project-id>\n  yx %s view <workitem-id>\n  yx %s create --project <project-id> --type Task --title \"Do work\" --description \"Details\" --assignee @me --dry-run\n  yx %s update <workitem-id> --title \"P1 Do work\" --dry-run\n  yx %s delete <workitem-id> --dry-run", use, use, use, use, use, use),
 	}
 	cmd.AddCommand(newWorkitemListCommand(opts))
 	cmd.AddCommand(newWorkitemViewCommand(opts))
@@ -167,7 +167,7 @@ func newWorkitemCreateCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Create a work item",
-		Example: "  yx workitem create --project <project-id> --type Task --title \"Do work\" --dry-run\n  yx workitem create --project <project-id> --type Task --title \"Do work\" --description \"Details\" --description-format markdown --yes",
+		Example: "  yx workitem create --project <project-id> --type Task --title \"Do work\" --dry-run\n  yx workitem create --project <project-id> --type Task --title \"Do work\" --description \"Details\" --description-format markdown --assignee @me --yes",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			useCase, err := opts.workitemUseCase(ContextFromCommand(cmd))
 			if err != nil {
@@ -185,6 +185,7 @@ func newWorkitemCreateCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringVar(&input.Title, "title", "", "work item title")
 	cmd.Flags().StringVar(&input.Description, "description", "", "work item description")
 	cmd.Flags().StringVar(&input.DescriptionFormat, "description-format", "", "description format: markdown or richtext")
+	cmd.Flags().StringVar(&input.Assignee, "assignee", "", "assignee user id or @me")
 	cmd.Flags().BoolVar(&input.DryRun, "dry-run", false, "show intended operation without writing")
 	cmd.Flags().BoolVar(&input.Yes, "yes", false, "skip confirmation")
 	return cmd
@@ -195,7 +196,7 @@ func newWorkitemUpdateCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "update <workitem-id>",
 		Short:   "Update a work item",
-		Example: "  yx workitem update <workitem-id> --status done --dry-run\n  yx workitem update <workitem-id> --assignee <user-id> --yes",
+		Example: "  yx workitem update <workitem-id> --title \"P1 Do work\" --dry-run\n  yx workitem update <workitem-id> --assignee @me --yes",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			input.ID = args[0]
@@ -211,7 +212,10 @@ func newWorkitemUpdateCommand(opts Options) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&input.Status, "status", "", "new status")
-	cmd.Flags().StringVar(&input.Assignee, "assignee", "", "assignee")
+	cmd.Flags().StringVar(&input.Assignee, "assignee", "", "assignee user id or @me")
+	cmd.Flags().StringVar(&input.Title, "title", "", "new title")
+	cmd.Flags().StringVar(&input.Description, "description", "", "new description")
+	cmd.Flags().StringVar(&input.DescriptionFormat, "description-format", "", "description format: markdown or richtext")
 	cmd.Flags().BoolVar(&input.DryRun, "dry-run", false, "show intended operation without writing")
 	cmd.Flags().BoolVar(&input.Yes, "yes", false, "skip confirmation")
 	return cmd

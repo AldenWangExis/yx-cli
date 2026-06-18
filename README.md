@@ -92,18 +92,21 @@ yx mr close <mr-id> --repo <repo> --dry-run
 
 `yx pr ...` is an alias for `yx mr ...`.
 
-Projects and work items:
+Projects, members, and work items:
 
 ```bash
 yx project list
+yx member list                         # discover USER_ID values for assignees
+yx member search --name "王子豪"
 yx workitem list --project <project-id>
 yx workitem view <workitem-id>
-yx workitem create --project <project-id> --type task --title "Task title" --description "Task details" --description-format markdown --dry-run
+yx workitem create --project <project-id> --type task --title "Task title" --assignee @me --dry-run
+yx workitem update <workitem-id> --title "P1 Task title" --description "Updated details" --description-format markdown --dry-run
 yx workitem update <workitem-id> --status done --assignee <user-id> --dry-run
 yx workitem delete <workitem-id> --dry-run
 ```
 
-`yx issue ...` is an alias for `yx workitem ...`. Repository-based issue commands require an explicit repo-to-project mapping:
+`yx issue ...` is an alias for `yx workitem ...`. Use `--assignee @me` for the current user, or `yx member search --name <name>` then pass the returned `USER_ID`. Repository-based issue lists require an explicit repo-to-project mapping:
 
 ```bash
 yx config set profiles.default.repoProjectMap.<repo> <project-id>

@@ -69,6 +69,7 @@ YX_INSTALL_VERSION=v1.2.0 curl -fsSL https://raw.githubusercontent.com/AldenWang
 | Branch/commit/file inspection | `yx repo branch/commit/file ...` | `yx repo branch --help` |
 | Merge requests / PRs | `yx mr ...` or `yx pr ...` | `yx mr --help` |
 | Projects | `yx project ...` | `yx project --help` |
+| Organization members / assignees | `yx member list/search/get` | `yx member --help` |
 | Work items / issues | `yx workitem ...` or `yx issue ...` | `yx issue --help` |
 | Flow pipelines/runs/logs | `yx pipeline ...` | `yx pipeline --help` |
 
@@ -148,7 +149,24 @@ yx pr close <mr-id> --repo <repo> --dry-run
 yx pr close <mr-id> --repo <repo> --yes
 ```
 
-For issue/work item work, use `yx issue ...` for GitHub-like language and `yx workitem ...` for Yunxiao language. If repo mapping fails, ask for or configure the project ID.
+For issue/work item work, use `yx issue ...` for GitHub-like language and `yx workitem ...` for Yunxiao language. Work items belong to Projex projects, not repos: list-by-repo requires `repoProjectMap`; view/update/delete use the work item ID directly.
+
+Assignees are Yunxiao `USER_ID` values. Use `@me` for the authenticated user; search members before assigning someone else:
+
+```bash
+yx member search --name <name>
+yx member get --user-id <user-id>
+```
+
+Create/update work items with explicit assignees and structured descriptions:
+
+```bash
+yx issue create --project <project-id> --type Task --title "Task title" --assignee @me --dry-run
+yx issue update <workitem-id> --title "P1 Task title" --description "Updated details" --description-format markdown --dry-run
+yx issue update <workitem-id> --assignee @me --yes
+```
+
+If creation fails because a project template requires an assignee, retry with `--assignee @me` or search a teammate and pass the returned `USER_ID`.
 
 Delete work items only after confirming the ID:
 

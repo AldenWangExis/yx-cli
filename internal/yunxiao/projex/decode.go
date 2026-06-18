@@ -42,6 +42,7 @@ type workitemCreateRequest struct {
 	Subject        string `json:"subject"`
 	Description    string `json:"description,omitempty"`
 	FormatType     string `json:"formatType,omitempty"`
+	AssignedTo     string `json:"assignedTo,omitempty"`
 }
 
 type projectCreateRequest struct {
@@ -53,8 +54,11 @@ type projectCreateRequest struct {
 }
 
 type workitemUpdateRequest struct {
-	Status     string `json:"status,omitempty"`
-	AssignedTo string `json:"assignedTo,omitempty"`
+	Status      string `json:"status,omitempty"`
+	AssignedTo  string `json:"assignedTo,omitempty"`
+	Subject     string `json:"subject,omitempty"`
+	Description string `json:"description,omitempty"`
+	FormatType  string `json:"formatType,omitempty"`
 }
 
 func decodeProjects(data []byte) ([]app.Project, error) {

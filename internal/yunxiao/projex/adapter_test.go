@@ -122,6 +122,7 @@ func TestAdapterProjectsAndWorkitems(t *testing.T) {
 		Title:             "Task Two",
 		Description:       "Task details",
 		DescriptionFormat: "markdown",
+		Assignee:          "u1",
 	})
 	if err != nil {
 		t.Fatalf("expected create, got: %v", err)
@@ -132,18 +133,30 @@ func TestAdapterProjectsAndWorkitems(t *testing.T) {
 	if !strings.Contains(createBody, `"spaceId":"p1"`) ||
 		!strings.Contains(createBody, `"subject":"Task Two"`) ||
 		!strings.Contains(createBody, `"description":"Task details"`) ||
-		!strings.Contains(createBody, `"formatType":"MARKDOWN"`) {
+		!strings.Contains(createBody, `"formatType":"MARKDOWN"`) ||
+		!strings.Contains(createBody, `"assignedTo":"u1"`) {
 		t.Fatalf("unexpected create body: %s", createBody)
 	}
 
-	updated, err := adapter.UpdateWorkitem(context.Background(), app.UpdateWorkitemInput{ID: "w1", Status: "done", Assignee: "u2"})
+	updated, err := adapter.UpdateWorkitem(context.Background(), app.UpdateWorkitemInput{
+		ID:                "w1",
+		Status:            "done",
+		Assignee:          "u2",
+		Title:             "P1 Task One",
+		Description:       "Updated",
+		DescriptionFormat: "markdown",
+	})
 	if err != nil {
 		t.Fatalf("expected update, got: %v", err)
 	}
 	if updated.ID != "w1" || updated.Status != "done" || updated.Assignee != "u2" {
 		t.Fatalf("unexpected updated item: %+v", updated)
 	}
-	if !strings.Contains(updateBody, `"status":"done"`) || !strings.Contains(updateBody, `"assignedTo":"u2"`) {
+	if !strings.Contains(updateBody, `"status":"done"`) ||
+		!strings.Contains(updateBody, `"assignedTo":"u2"`) ||
+		!strings.Contains(updateBody, `"subject":"P1 Task One"`) ||
+		!strings.Contains(updateBody, `"description":"Updated"`) ||
+		!strings.Contains(updateBody, `"formatType":"MARKDOWN"`) {
 		t.Fatalf("unexpected update body: %s", updateBody)
 	}
 

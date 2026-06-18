@@ -83,7 +83,7 @@ func (s runtimeServices) mergeRequestUseCase() MergeRequestUseCase {
 
 func (s runtimeServices) workitemUseCase() WorkitemUseCase {
 	adapter := s.projexAdapter()
-	return app.NewWorkitemUseCase(adapter, adapter, s.runtime.Profile.RepoProjectMap, s.safetyEnvironment())
+	return app.NewWorkitemUseCaseWithAssigneeResolver(adapter, adapter, currentUserAssigneeResolver{platform: s.platformAdapter()}, s.runtime.Profile.RepoProjectMap, s.safetyEnvironment())
 }
 
 func (s runtimeServices) pipelineUseCase() PipelineUseCase {
@@ -92,4 +92,8 @@ func (s runtimeServices) pipelineUseCase() PipelineUseCase {
 
 func (s runtimeServices) organizationUseCase() OrganizationUseCase {
 	return app.NewOrganizationUseCase(s.platformAdapter())
+}
+
+func (s runtimeServices) memberUseCase() MemberUseCase {
+	return app.NewMemberUseCase(s.platformAdapter())
 }

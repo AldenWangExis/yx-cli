@@ -70,23 +70,30 @@ func TestProjectAndWorkitemCommands(t *testing.T) {
 	}
 
 	_, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts),
-		"workitem", "create", "--project", "p1", "--type", "task", "--title", "Task One", "--description", "Details", "--description-format", "markdown", "--dry-run")
+		"workitem", "create", "--project", "p1", "--type", "task", "--title", "Task One", "--description", "Details", "--description-format", "markdown", "--assignee", "@me", "--dry-run")
 	if err != nil {
 		t.Fatalf("expected workitem create to succeed, got error: %v stderr=%s", err, stderr)
 	}
 	if !workitems.createInput.DryRun ||
 		workitems.createInput.ProjectID != "p1" ||
 		workitems.createInput.Description != "Details" ||
-		workitems.createInput.DescriptionFormat != "markdown" {
+		workitems.createInput.DescriptionFormat != "markdown" ||
+		workitems.createInput.Assignee != "@me" {
 		t.Fatalf("unexpected create input: %+v", workitems.createInput)
 	}
 
 	_, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts),
-		"workitem", "update", "w1", "--status", "done", "--assignee", "u1", "--dry-run")
+		"workitem", "update", "w1", "--status", "done", "--assignee", "@me", "--title", "P1 Task One", "--description", "Updated", "--description-format", "markdown", "--dry-run")
 	if err != nil {
 		t.Fatalf("expected workitem update to succeed, got error: %v stderr=%s", err, stderr)
 	}
-	if !workitems.updateInput.DryRun || workitems.updateInput.ID != "w1" || workitems.updateInput.Status != "done" {
+	if !workitems.updateInput.DryRun ||
+		workitems.updateInput.ID != "w1" ||
+		workitems.updateInput.Status != "done" ||
+		workitems.updateInput.Assignee != "@me" ||
+		workitems.updateInput.Title != "P1 Task One" ||
+		workitems.updateInput.Description != "Updated" ||
+		workitems.updateInput.DescriptionFormat != "markdown" {
 		t.Fatalf("unexpected update input: %+v", workitems.updateInput)
 	}
 

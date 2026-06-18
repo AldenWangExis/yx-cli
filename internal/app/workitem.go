@@ -59,16 +59,20 @@ type CreateWorkitemInput struct {
 	Title             string
 	Description       string
 	DescriptionFormat string
+	Assignee          string
 	DryRun            bool
 	Yes               bool
 }
 
 type UpdateWorkitemInput struct {
-	ID       string
-	Status   string
-	Assignee string
-	DryRun   bool
-	Yes      bool
+	ID                string
+	Status            string
+	Assignee          string
+	Title             string
+	Description       string
+	DescriptionFormat string
+	DryRun            bool
+	Yes               bool
 }
 
 type DeleteWorkitemInput struct {
@@ -103,11 +107,16 @@ type WorkitemService interface {
 	DeleteWorkitem(ctx context.Context, id string) (WorkitemDetail, error)
 }
 
+type AssigneeResolver interface {
+	ResolveAssignee(ctx context.Context, assignee string) (string, error)
+}
+
 type WorkitemUseCase struct {
-	projects       ProjectService
-	workitems      WorkitemService
-	repoProjectMap map[string]string
-	safety         safety.Environment
+	projects         ProjectService
+	workitems        WorkitemService
+	assigneeResolver AssigneeResolver
+	repoProjectMap   map[string]string
+	safety           safety.Environment
 }
 
 type ErrMissingRepoProjectMapping struct {
@@ -119,14 +128,19 @@ func (e ErrMissingRepoProjectMapping) Error() string {
 }
 
 func NewWorkitemUseCase(projects ProjectService, workitems WorkitemService, repoProjectMap map[string]string, safetyEnv safety.Environment) *WorkitemUseCase {
+	return NewWorkitemUseCaseWithAssigneeResolver(projects, workitems, nil, repoProjectMap, safetyEnv)
+}
+
+func NewWorkitemUseCaseWithAssigneeResolver(projects ProjectService, workitems WorkitemService, resolver AssigneeResolver, repoProjectMap map[string]string, safetyEnv safety.Environment) *WorkitemUseCase {
 	if repoProjectMap == nil {
 		repoProjectMap = map[string]string{}
 	}
 	return &WorkitemUseCase{
-		projects:       projects,
-		workitems:      workitems,
-		repoProjectMap: repoProjectMap,
-		safety:         safetyEnv,
+		projects:         projects,
+		workitems:        workitems,
+		assigneeResolver: resolver,
+		repoProjectMap:   repoProjectMap,
+		safety:           safetyEnv,
 	}
 }
 
@@ -220,9 +234,13 @@ func (u *WorkitemUseCase) CreateWorkitem(ctx context.Context, input CreateWorkit
 	if decision.DryRun {
 		return WorkitemMutationResult{DryRun: true, Summary: summary}, nil
 	}
-	detail, err := u.workitems.CreateWorkitem(ctx, input)
+	input, err = u.resolveCreateAssignee(ctx, input)
 	if err != nil {
 		return WorkitemMutationResult{}, err
+	}
+	detail, err := u.workitems.CreateWorkitem(ctx, input)
+	if err != nil {
+		return WorkitemMutationResult{}, withMissingAssigneeHint(err)
 	}
 	return WorkitemMutationResult{Workitem: detail}, nil
 }
@@ -241,8 +259,15 @@ func (u *WorkitemUseCase) UpdateWorkitem(ctx context.Context, input UpdateWorkit
 	if input.ID == "" {
 		return WorkitemMutationResult{}, fmt.Errorf("workitem id is required")
 	}
-	if input.Status == "" && input.Assignee == "" {
-		return WorkitemMutationResult{}, fmt.Errorf("status or assignee is required")
+	if input.Status == "" && input.Assignee == "" && input.Title == "" && input.Description == "" {
+		return WorkitemMutationResult{}, fmt.Errorf("status, assignee, title, or description is required")
+	}
+	if input.DescriptionFormat != "" {
+		switch strings.ToLower(input.DescriptionFormat) {
+		case "markdown", "richtext":
+		default:
+			return WorkitemMutationResult{}, fmt.Errorf("description format must be markdown or richtext")
+		}
 	}
 	summary := fmt.Sprintf("update workitem %s", input.ID)
 	decision, err := safety.Decide(safety.Request{Summary: summary, DryRun: input.DryRun, Yes: input.Yes}, u.safety)
@@ -252,11 +277,54 @@ func (u *WorkitemUseCase) UpdateWorkitem(ctx context.Context, input UpdateWorkit
 	if decision.DryRun {
 		return WorkitemMutationResult{DryRun: true, Summary: summary}, nil
 	}
+	input, err = u.resolveUpdateAssignee(ctx, input)
+	if err != nil {
+		return WorkitemMutationResult{}, err
+	}
 	detail, err := u.workitems.UpdateWorkitem(ctx, input)
 	if err != nil {
 		return WorkitemMutationResult{}, err
 	}
 	return WorkitemMutationResult{Workitem: detail}, nil
+}
+
+func (u *WorkitemUseCase) resolveCreateAssignee(ctx context.Context, input CreateWorkitemInput) (CreateWorkitemInput, error) {
+	if input.Assignee == "" || u.assigneeResolver == nil {
+		return input, nil
+	}
+	assignee, err := u.assigneeResolver.ResolveAssignee(ctx, input.Assignee)
+	if err != nil {
+		return CreateWorkitemInput{}, err
+	}
+	input.Assignee = assignee
+	return input, nil
+}
+
+func (u *WorkitemUseCase) resolveUpdateAssignee(ctx context.Context, input UpdateWorkitemInput) (UpdateWorkitemInput, error) {
+	if input.Assignee == "" || u.assigneeResolver == nil {
+		return input, nil
+	}
+	assignee, err := u.assigneeResolver.ResolveAssignee(ctx, input.Assignee)
+	if err != nil {
+		return UpdateWorkitemInput{}, err
+	}
+	input.Assignee = assignee
+	return input, nil
+}
+
+func withMissingAssigneeHint(err error) error {
+	if err == nil {
+		return nil
+	}
+	message := err.Error()
+	lower := strings.ToLower(message)
+	if !strings.Contains(message, "指派人不能为空") &&
+		!strings.Contains(message, "负责人不能为空") &&
+		!strings.Contains(lower, "assignee") &&
+		!strings.Contains(lower, "assignedto") {
+		return err
+	}
+	return fmt.Errorf("%w\n\nThis project requires an assignee. Try assigning yourself with --assignee @me, or find a teammate with: yx member search --name <name>", err)
 }
 
 func (u *WorkitemUseCase) DeleteWorkitem(ctx context.Context, input DeleteWorkitemInput) (WorkitemMutationResult, error) {

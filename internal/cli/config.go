@@ -24,6 +24,7 @@ type Options struct {
 	RepoCurrentResolver RepositoryCurrentResolver
 	MergeRequestUseCase MergeRequestUseCase
 	WorkitemUseCase     WorkitemUseCase
+	MemberUseCase       MemberUseCase
 	PipelineUseCase     PipelineUseCase
 	OrganizationUseCase OrganizationUseCase
 	AuthAccountResolver AuthAccountResolver

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -129,6 +130,7 @@ func TestWorkitemCreateAndUpdateDryRunDoNotMutate(t *testing.T) {
 		Title:             "Task One",
 		Description:       "Details",
 		DescriptionFormat: "markdown",
+		Assignee:          "u1",
 		DryRun:            true,
 	})
 	if err != nil {
@@ -149,15 +151,54 @@ func TestWorkitemCreateAndUpdateDryRunDoNotMutate(t *testing.T) {
 	}
 
 	updated, err := useCase.UpdateWorkitem(context.Background(), UpdateWorkitemInput{
-		ID:     "w1",
-		Status: "done",
-		DryRun: true,
+		ID:                "w1",
+		Status:            "done",
+		Title:             "P1 Task One",
+		Description:       "Updated",
+		DescriptionFormat: "markdown",
+		DryRun:            true,
 	})
 	if err != nil {
 		t.Fatalf("expected update dry-run to succeed, got: %v", err)
 	}
 	if !updated.DryRun || workitems.updateCalled {
 		t.Fatalf("expected dry-run without mutation, result=%+v called=%v", updated, workitems.updateCalled)
+	}
+}
+
+func TestWorkitemCreateMissingAssigneeErrorAddsHint(t *testing.T) {
+	workitems := &fakeWorkitemService{createErr: fmt.Errorf("指派人不能为空")}
+	useCase := NewWorkitemUseCase(&fakeProjectService{}, workitems, nil, safety.Environment{})
+
+	_, err := useCase.CreateWorkitem(context.Background(), CreateWorkitemInput{
+		ProjectID: "p1",
+		Type:      "task",
+		Title:     "Task One",
+	})
+	if err == nil {
+		t.Fatal("expected create error")
+	}
+	if !strings.Contains(err.Error(), "--assignee @me") || !strings.Contains(err.Error(), "yx member search --name") {
+		t.Fatalf("expected actionable missing assignee hint, got: %v", err)
+	}
+}
+
+func TestWorkitemAssigneeResolver(t *testing.T) {
+	workitems := &fakeWorkitemService{}
+	resolver := &fakeAssigneeResolver{resolved: "u-me"}
+	useCase := NewWorkitemUseCaseWithAssigneeResolver(&fakeProjectService{}, workitems, resolver, nil, safety.Environment{})
+
+	_, err := useCase.CreateWorkitem(context.Background(), CreateWorkitemInput{
+		ProjectID: "p1",
+		Type:      "task",
+		Title:     "Task One",
+		Assignee:  "@me",
+	})
+	if err != nil {
+		t.Fatalf("create workitem: %v", err)
+	}
+	if resolver.input != "@me" || workitems.createInput.Assignee != "u-me" {
+		t.Fatalf("expected resolved assignee, resolver=%+v input=%+v", resolver, workitems.createInput)
 	}
 }
 
@@ -227,6 +268,7 @@ type fakeWorkitemService struct {
 	lastProjectID string
 	listCalled    bool
 	createCalled  bool
+	createErr     error
 	updateCalled  bool
 	deleteCalled  bool
 }
@@ -244,6 +286,9 @@ func (s *fakeWorkitemService) GetWorkitem(ctx context.Context, id string) (Worki
 func (s *fakeWorkitemService) CreateWorkitem(ctx context.Context, input CreateWorkitemInput) (WorkitemDetail, error) {
 	s.createCalled = true
 	s.createInput = input
+	if s.createErr != nil {
+		return WorkitemDetail{}, s.createErr
+	}
 	if s.created.ID == "" {
 		return WorkitemDetail{ID: "w1", Title: input.Title, Type: input.Type, ProjectID: input.ProjectID}, nil
 	}
@@ -261,4 +306,14 @@ func (s *fakeWorkitemService) UpdateWorkitem(ctx context.Context, input UpdateWo
 func (s *fakeWorkitemService) DeleteWorkitem(ctx context.Context, id string) (WorkitemDetail, error) {
 	s.deleteCalled = true
 	return WorkitemDetail{ID: id}, nil
+}
+
+type fakeAssigneeResolver struct {
+	input    string
+	resolved string
+}
+
+func (r *fakeAssigneeResolver) ResolveAssignee(ctx context.Context, assignee string) (string, error) {
+	r.input = assignee
+	return r.resolved, nil
 }

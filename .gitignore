@@ -34,3 +34,4 @@ go.work.sum
 /docs/
 !/docs/
 !/docs/linux-support-implementation.md
+!/docs/member-and-workitem-assignment-spec.md

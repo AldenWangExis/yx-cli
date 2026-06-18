@@ -91,6 +91,7 @@ func (a *Adapter) CreateWorkitem(ctx context.Context, input app.CreateWorkitemIn
 		Subject:        input.Title,
 		Description:    input.Description,
 		FormatType:     normalizeDescriptionFormat(input.DescriptionFormat),
+		AssignedTo:     input.Assignee,
 	})
 	if err != nil {
 		return app.WorkitemDetail{}, err
@@ -116,8 +117,11 @@ func normalizeDescriptionFormat(format string) string {
 
 func (a *Adapter) UpdateWorkitem(ctx context.Context, input app.UpdateWorkitemInput) (app.WorkitemDetail, error) {
 	body, err := json.Marshal(workitemUpdateRequest{
-		Status:     input.Status,
-		AssignedTo: input.Assignee,
+		Status:      input.Status,
+		AssignedTo:  input.Assignee,
+		Subject:     input.Title,
+		Description: input.Description,
+		FormatType:  normalizeDescriptionFormat(input.DescriptionFormat),
 	})
 	if err != nil {
 		return app.WorkitemDetail{}, err

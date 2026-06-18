@@ -14,11 +14,12 @@ func TestTopLevelCommandHelpContracts(t *testing.T) {
 		args []string
 		want []string
 	}{
-		{name: "root", args: []string{"--help"}, want: []string{"Available Commands:", "auth", "completion", "config", "issue", "mr", "pipeline", "pr", "project", "repo", "version", "workitem"}},
+		{name: "root", args: []string{"--help"}, want: []string{"Available Commands:", "auth", "completion", "config", "issue", "member", "mr", "pipeline", "pr", "project", "repo", "version", "workitem"}},
 		{name: "auth", args: []string{"auth", "--help"}, want: []string{"Manage authentication", "status", "login", "logout"}},
 		{name: "completion", args: []string{"completion", "--help"}, want: []string{"Generate the autocompletion script", "bash", "zsh", "fish", "powershell"}},
 		{name: "config", args: []string{"config", "--help"}, want: []string{"Manage yx configuration", "list", "get", "set", "use"}},
 		{name: "issue", args: []string{"issue", "--help"}, want: []string{"Manage Yunxiao work items", "list", "view", "create", "update"}},
+		{name: "member", args: []string{"member", "--help"}, want: []string{"Manage Yunxiao organization members", "list", "search", "get"}},
 		{name: "mr", args: []string{"mr", "--help"}, want: []string{"Manage Codeup merge requests", "list", "view", "create", "merge"}},
 		{name: "pipeline", args: []string{"pipeline", "--help"}, want: []string{"Manage Yunxiao Flow pipelines", "list", "view", "create", "run", "logs"}},
 		{name: "pr", args: []string{"pr", "--help"}, want: []string{"Manage Codeup merge requests", "list", "view", "create", "merge"}},
@@ -61,8 +62,11 @@ func TestHighLevelSubcommandFlagHelpContracts(t *testing.T) {
 		{name: "mr merge", args: []string{"mr", "merge", "--help"}, want: []string{"--repo", "--dry-run", "--yes"}},
 		{name: "project create", args: []string{"project", "create", "--help"}, want: []string{"--name", "--custom-code", "--scope", "--template-id", "--description", "--dry-run", "--yes"}},
 		{name: "workitem list", args: []string{"workitem", "list", "--help"}, want: []string{"--project", "--repo"}},
-		{name: "workitem create", args: []string{"workitem", "create", "--help"}, want: []string{"--project", "--type", "--title", "--dry-run", "--yes"}},
-		{name: "workitem update", args: []string{"workitem", "update", "--help"}, want: []string{"--status", "--assignee", "--dry-run", "--yes"}},
+		{name: "member list", args: []string{"member", "list", "--help"}, want: []string{"--status"}},
+		{name: "member search", args: []string{"member", "search", "--help"}, want: []string{"--name", "--email", "--status"}},
+		{name: "member get", args: []string{"member", "get", "--help"}, want: []string{"--user-id"}},
+		{name: "workitem create", args: []string{"workitem", "create", "--help"}, want: []string{"--project", "--type", "--title", "--description", "--description-format", "--assignee", "--dry-run", "--yes"}},
+		{name: "workitem update", args: []string{"workitem", "update", "--help"}, want: []string{"--status", "--assignee", "--title", "--description", "--description-format", "--dry-run", "--yes"}},
 		{name: "pipeline create", args: []string{"pipeline", "create", "--help"}, want: []string{"--name", "--file", "--dry-run", "--yes"}},
 		{name: "pipeline run", args: []string{"pipeline", "run", "--help"}, want: []string{"--branch", "--dry-run", "--yes"}},
 		{name: "pipeline run list", args: []string{"pipeline", "run", "list", "--help"}, want: []string{"--branch", "--tag", "--commit", "--page", "--per-page"}},
