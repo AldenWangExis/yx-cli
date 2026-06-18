@@ -124,16 +124,28 @@ func TestWorkitemCreateAndUpdateDryRunDoNotMutate(t *testing.T) {
 	useCase := NewWorkitemUseCase(&fakeProjectService{}, workitems, nil, safety.Environment{ConfirmWrites: true})
 
 	created, err := useCase.CreateWorkitem(context.Background(), CreateWorkitemInput{
-		ProjectID: "p1",
-		Type:      "task",
-		Title:     "Task One",
-		DryRun:    true,
+		ProjectID:         "p1",
+		Type:              "task",
+		Title:             "Task One",
+		Description:       "Details",
+		DescriptionFormat: "markdown",
+		DryRun:            true,
 	})
 	if err != nil {
 		t.Fatalf("expected create dry-run to succeed, got: %v", err)
 	}
 	if !created.DryRun || workitems.createCalled {
 		t.Fatalf("expected dry-run without mutation, result=%+v called=%v", created, workitems.createCalled)
+	}
+
+	_, err = useCase.CreateWorkitem(context.Background(), CreateWorkitemInput{
+		ProjectID:         "p1",
+		Type:              "task",
+		Title:             "Task One",
+		DescriptionFormat: "html",
+	})
+	if err == nil || !strings.Contains(err.Error(), "description format") {
+		t.Fatalf("expected invalid description format error, got: %v", err)
 	}
 
 	updated, err := useCase.UpdateWorkitem(context.Background(), UpdateWorkitemInput{
@@ -210,6 +222,7 @@ type fakeWorkitemService struct {
 	list          []WorkitemListItem
 	detail        WorkitemDetail
 	created       WorkitemDetail
+	createInput   CreateWorkitemInput
 	updated       WorkitemDetail
 	lastProjectID string
 	listCalled    bool
@@ -230,6 +243,7 @@ func (s *fakeWorkitemService) GetWorkitem(ctx context.Context, id string) (Worki
 
 func (s *fakeWorkitemService) CreateWorkitem(ctx context.Context, input CreateWorkitemInput) (WorkitemDetail, error) {
 	s.createCalled = true
+	s.createInput = input
 	if s.created.ID == "" {
 		return WorkitemDetail{ID: "w1", Title: input.Title, Type: input.Type, ProjectID: input.ProjectID}, nil
 	}

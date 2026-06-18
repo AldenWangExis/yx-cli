@@ -116,14 +116,23 @@ func TestAdapterProjectsAndWorkitems(t *testing.T) {
 		t.Fatalf("expected assignee u1, got %q", detail.Assignee)
 	}
 
-	created, err := adapter.CreateWorkitem(context.Background(), app.CreateWorkitemInput{ProjectID: "p1", Type: "task", Title: "Task Two"})
+	created, err := adapter.CreateWorkitem(context.Background(), app.CreateWorkitemInput{
+		ProjectID:         "p1",
+		Type:              "task",
+		Title:             "Task Two",
+		Description:       "Task details",
+		DescriptionFormat: "markdown",
+	})
 	if err != nil {
 		t.Fatalf("expected create, got: %v", err)
 	}
 	if created.ID != "w2" {
 		t.Fatalf("unexpected created item: %+v", created)
 	}
-	if !strings.Contains(createBody, `"spaceId":"p1"`) || !strings.Contains(createBody, `"subject":"Task Two"`) {
+	if !strings.Contains(createBody, `"spaceId":"p1"`) ||
+		!strings.Contains(createBody, `"subject":"Task Two"`) ||
+		!strings.Contains(createBody, `"description":"Task details"`) ||
+		!strings.Contains(createBody, `"formatType":"MARKDOWN"`) {
 		t.Fatalf("unexpected create body: %s", createBody)
 	}
 

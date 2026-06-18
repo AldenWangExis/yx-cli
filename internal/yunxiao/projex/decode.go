@@ -40,6 +40,8 @@ type workitemCreateRequest struct {
 	SpaceID        string `json:"spaceId"`
 	WorkitemTypeID string `json:"workitemTypeId"`
 	Subject        string `json:"subject"`
+	Description    string `json:"description,omitempty"`
+	FormatType     string `json:"formatType,omitempty"`
 }
 
 type projectCreateRequest struct {

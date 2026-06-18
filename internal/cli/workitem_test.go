@@ -70,11 +70,14 @@ func TestProjectAndWorkitemCommands(t *testing.T) {
 	}
 
 	_, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts),
-		"workitem", "create", "--project", "p1", "--type", "task", "--title", "Task One", "--dry-run")
+		"workitem", "create", "--project", "p1", "--type", "task", "--title", "Task One", "--description", "Details", "--description-format", "markdown", "--dry-run")
 	if err != nil {
 		t.Fatalf("expected workitem create to succeed, got error: %v stderr=%s", err, stderr)
 	}
-	if !workitems.createInput.DryRun || workitems.createInput.ProjectID != "p1" {
+	if !workitems.createInput.DryRun ||
+		workitems.createInput.ProjectID != "p1" ||
+		workitems.createInput.Description != "Details" ||
+		workitems.createInput.DescriptionFormat != "markdown" {
 		t.Fatalf("unexpected create input: %+v", workitems.createInput)
 	}
 

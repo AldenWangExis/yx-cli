@@ -89,6 +89,8 @@ func (a *Adapter) CreateWorkitem(ctx context.Context, input app.CreateWorkitemIn
 		SpaceID:        input.ProjectID,
 		WorkitemTypeID: input.Type,
 		Subject:        input.Title,
+		Description:    input.Description,
+		FormatType:     normalizeDescriptionFormat(input.DescriptionFormat),
 	})
 	if err != nil {
 		return app.WorkitemDetail{}, err
@@ -99,6 +101,17 @@ func (a *Adapter) CreateWorkitem(ctx context.Context, input app.CreateWorkitemIn
 		return app.WorkitemDetail{}, err
 	}
 	return decodeWorkitem(data)
+}
+
+func normalizeDescriptionFormat(format string) string {
+	switch format {
+	case "markdown", "MARKDOWN":
+		return "MARKDOWN"
+	case "richtext", "RICHTEXT":
+		return "RICHTEXT"
+	default:
+		return format
+	}
 }
 
 func (a *Adapter) UpdateWorkitem(ctx context.Context, input app.UpdateWorkitemInput) (app.WorkitemDetail, error) {

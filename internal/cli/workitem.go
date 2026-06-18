@@ -87,7 +87,7 @@ func newWorkitemCommand(opts Options, use string) *cobra.Command {
 		Use:     use,
 		Short:   "Manage Yunxiao work items",
 		Long:    "Manage Yunxiao work items. The issue command is an alias over workitem.",
-		Example: fmt.Sprintf("  yx %s list\n  yx %s list --project <project-id>\n  yx %s view <workitem-id>\n  yx %s create --project <project-id> --type Task --title \"Do work\" --dry-run\n  yx %s update <workitem-id> --status done --dry-run\n  yx %s delete <workitem-id> --dry-run", use, use, use, use, use, use),
+		Example: fmt.Sprintf("  yx %s list\n  yx %s list --project <project-id>\n  yx %s view <workitem-id>\n  yx %s create --project <project-id> --type Task --title \"Do work\" --description \"Details\" --dry-run\n  yx %s update <workitem-id> --status done --dry-run\n  yx %s delete <workitem-id> --dry-run", use, use, use, use, use, use),
 	}
 	cmd.AddCommand(newWorkitemListCommand(opts))
 	cmd.AddCommand(newWorkitemViewCommand(opts))
@@ -167,7 +167,7 @@ func newWorkitemCreateCommand(opts Options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Create a work item",
-		Example: "  yx workitem create --project <project-id> --type Task --title \"Do work\" --dry-run\n  yx workitem create --project <project-id> --type Task --title \"Do work\" --yes",
+		Example: "  yx workitem create --project <project-id> --type Task --title \"Do work\" --dry-run\n  yx workitem create --project <project-id> --type Task --title \"Do work\" --description \"Details\" --description-format markdown --yes",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			useCase, err := opts.workitemUseCase(ContextFromCommand(cmd))
 			if err != nil {
@@ -183,6 +183,8 @@ func newWorkitemCreateCommand(opts Options) *cobra.Command {
 	cmd.Flags().StringVar(&input.ProjectID, "project", "", "project id")
 	cmd.Flags().StringVar(&input.Type, "type", "", "work item type")
 	cmd.Flags().StringVar(&input.Title, "title", "", "work item title")
+	cmd.Flags().StringVar(&input.Description, "description", "", "work item description")
+	cmd.Flags().StringVar(&input.DescriptionFormat, "description-format", "", "description format: markdown or richtext")
 	cmd.Flags().BoolVar(&input.DryRun, "dry-run", false, "show intended operation without writing")
 	cmd.Flags().BoolVar(&input.Yes, "yes", false, "skip confirmation")
 	return cmd

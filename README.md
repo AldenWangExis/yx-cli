@@ -98,7 +98,7 @@ Projects and work items:
 yx project list
 yx workitem list --project <project-id>
 yx workitem view <workitem-id>
-yx workitem create --project <project-id> --type task --title "Task title" --dry-run
+yx workitem create --project <project-id> --type task --title "Task title" --description "Task details" --description-format markdown --dry-run
 yx workitem update <workitem-id> --status done --assignee <user-id> --dry-run
 yx workitem delete <workitem-id> --dry-run
 ```

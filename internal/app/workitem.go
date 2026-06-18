@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/AldenWangExis/yx-cli/internal/safety"
@@ -53,11 +54,13 @@ type CreateProjectInput struct {
 }
 
 type CreateWorkitemInput struct {
-	ProjectID string
-	Type      string
-	Title     string
-	DryRun    bool
-	Yes       bool
+	ProjectID         string
+	Type              string
+	Title             string
+	Description       string
+	DescriptionFormat string
+	DryRun            bool
+	Yes               bool
 }
 
 type UpdateWorkitemInput struct {
@@ -201,6 +204,13 @@ func (u *WorkitemUseCase) GetWorkitem(ctx context.Context, id string) (WorkitemD
 func (u *WorkitemUseCase) CreateWorkitem(ctx context.Context, input CreateWorkitemInput) (WorkitemMutationResult, error) {
 	if input.ProjectID == "" || input.Type == "" || input.Title == "" {
 		return WorkitemMutationResult{}, fmt.Errorf("project, type, and title are required")
+	}
+	if input.DescriptionFormat != "" {
+		switch strings.ToLower(input.DescriptionFormat) {
+		case "markdown", "richtext":
+		default:
+			return WorkitemMutationResult{}, fmt.Errorf("description format must be markdown or richtext")
+		}
 	}
 	summary := fmt.Sprintf("create %s workitem %q in %s", input.Type, input.Title, input.ProjectID)
 	decision, err := safety.Decide(safety.Request{Summary: summary, DryRun: input.DryRun, Yes: input.Yes}, u.safety)
