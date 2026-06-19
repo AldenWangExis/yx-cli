@@ -21,7 +21,7 @@ npm install -g @aldenwangexis/yx-cli
 ```
 
 If both installers are used, `command -v yx` shows which one wins on `PATH`.
-The npm package version maps to the same GitHub Release tag, so `@aldenwangexis/yx-cli@1.6.0` installs the `v1.6.0` binary.
+The npm channel installs a platform-specific npm binary package and does not download from GitHub Releases during install. The npm package version still matches the GitHub Release tag, so `@aldenwangexis/yx-cli@1.6.0` and GitHub Release `v1.6.0` refer to the same Go CLI version.
 
 Install a specific release when you need a pinned version:
 

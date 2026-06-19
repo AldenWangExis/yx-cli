@@ -15,4 +15,4 @@ command -v yx
 yx --version
 ```
 
-This package downloads the matching binary from the GitHub Release for the npm package version.
+This package installs a platform-specific npm binary package. npm installation does not download from GitHub Releases.

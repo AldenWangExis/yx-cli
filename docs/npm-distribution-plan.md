@@ -2,104 +2,168 @@
 
 ## Decision
 
-Add npm as a thin installation channel for `yx`. The npm package does not rebuild or reimplement the CLI; it downloads the matching binary from GitHub Releases during `postinstall` and exposes a `yx` bin shim.
+Keep `yx` as a Go CLI. npm is an independent distribution channel, not a JavaScript rewrite and not a GitHub Release downloader.
 
-Package name:
+The npm channel uses one main package plus platform-specific binary packages:
 
 ```text
 @aldenwangexis/yx-cli
+@aldenwangexis/yx-cli-darwin-arm64
+@aldenwangexis/yx-cli-linux-x64
+@aldenwangexis/yx-cli-linux-arm64
+@aldenwangexis/yx-cli-win32-x64
 ```
 
-Why scoped:
-
-- the unscoped `yx-cli` name is already owned by another npm publisher;
-- the current npm account is `aldenwangexis`;
-- `@aldenwangexis/yx-cli` returned npm 404 during availability checks, which is the expected pre-publish state.
-
-## Release Source Of Truth
-
-Git tags are the release transaction boundary. A successful release must publish the same version to every channel:
-
-1. tag `vX.Y.Z`;
-2. GitHub Release `vX.Y.Z`;
-3. Release assets built with CLI version `vX.Y.Z`;
-4. npm package `@aldenwangexis/yx-cli@X.Y.Z`;
-5. npm package install downloads GitHub Release `vX.Y.Z`.
-
-GitHub Releases remain the canonical binary source. npm package versions must map one-to-one to Git tags:
-
-| Git tag | npm version | downloaded release |
-|---|---|---|
-| `v1.4.0` | `1.4.0` | `v1.4.0` |
-| `v1.6.0` | `1.6.0` | `v1.6.0` |
-
-Do not publish an npm version unless the matching GitHub Release assets already exist.
-
-Current branch note: the npm package is set to `1.4.0` because `v1.4.0` already has Release assets and is useful for validating the npm installer end to end. Before publishing a new public npm release for current CLI features, create a new passing GitHub tag/release and bump `npm/yx-cli/package.json` to that version.
-
-The release workflow enforces this with:
-
-```bash
-sh scripts/check_release_version.sh vX.Y.Z
-```
-
-If `npm/yx-cli/package.json` is not `X.Y.Z`, the tag workflow fails before binary build and npm publish.
-
-## User UX
-
-Install:
+Users install the main package:
 
 ```bash
 npm install -g @aldenwangexis/yx-cli
 ```
 
-Verify:
+npm resolves the matching optional platform package from the npm registry. Installation does not download from GitHub Releases.
 
-```bash
-command -v yx
-yx --version
+## Release Invariant
+
+Git tags are the release transaction boundary. A successful release publishes the same version to every channel:
+
+```text
+tag vX.Y.Z
+GitHub Release vX.Y.Z
+GitHub Release assets built with CLI version vX.Y.Z
+@aldenwangexis/yx-cli@X.Y.Z
+@aldenwangexis/yx-cli-darwin-arm64@X.Y.Z
+@aldenwangexis/yx-cli-linux-x64@X.Y.Z
+@aldenwangexis/yx-cli-linux-arm64@X.Y.Z
+@aldenwangexis/yx-cli-win32-x64@X.Y.Z
 ```
 
-Update:
-
-```bash
-npm update -g @aldenwangexis/yx-cli
-```
-
-When the CLI is launched through the npm shim, the wrapper sets `YX_INSTALL_CHANNEL=npm` and `YX_NPM_PACKAGE=@aldenwangexis/yx-cli`; update hints should therefore show the npm update command instead of the curl installer command.
+The main npm package pins every platform package to the exact same version in `optionalDependencies`. Do not use ranges such as `^X.Y.Z`.
 
 ## Package Layout
 
 ```text
-npm/yx-cli/
-  package.json
-  README.md
-  bin/yx.js
-  scripts/install.js
-  scripts/install.test.js
-  scripts/platform.js
+npm/
+  yx-cli/
+    package.json
+    README.md
+    bin/yx.js
+    scripts/packages.js
+    scripts/prepare-platform-packages.js
+    scripts/verify-packages.js
+    scripts/install.test.js
+  yx-cli-darwin-arm64/
+    package.json
+    bin/yx              # generated during release
+  yx-cli-linux-x64/
+    package.json
+    bin/yx              # generated during release
+  yx-cli-linux-arm64/
+    package.json
+    bin/yx              # generated during release
+  yx-cli-win32-x64/
+    package.json
+    bin/yx.exe          # generated during release
 ```
 
-`scripts/install.js`:
+`bin/` directories under platform packages are generated from CI build artifacts and are ignored by git.
 
-1. reads `package.json` version;
-2. maps it to GitHub tag `v<version>`;
-3. detects platform and architecture;
-4. downloads the matching Release asset into `vendor/`;
-5. marks the binary executable on POSIX platforms.
+## Runtime Behavior
 
-Platform mapping:
+`@aldenwangexis/yx-cli` exposes the `yx` command through `bin/yx.js`.
 
-| Node platform | Node arch | Release asset |
-|---|---|---|
-| `darwin` | `arm64` | `yx-darwin-arm64` |
-| `linux` | `x64` | `yx-linux-amd64` |
-| `linux` | `arm64` | `yx-linux-arm64` |
-| `win32` | `x64` | `yx-windows-amd64.exe` |
+The shim:
 
-Unsupported platforms fail with a clear error.
+1. detects `process.platform` and `process.arch`;
+2. resolves the matching platform package;
+3. executes that package's bundled Go binary;
+4. forwards args and stdio;
+5. sets npm channel metadata:
 
-`bin/yx.js` resolves `vendor/yx` or `vendor/yx.exe`, forwards all CLI args, inherits stdio, and exits with the child process status.
+```text
+YX_INSTALL_CHANNEL=npm
+YX_NPM_PACKAGE=@aldenwangexis/yx-cli
+YX_NPM_PLATFORM_PACKAGE=<resolved-platform-package>
+```
+
+The Go binary remains the real CLI implementation.
+
+## Platform Mapping
+
+| Node platform | Node arch | npm platform package | GitHub Release asset |
+|---|---|---|---|
+| `darwin` | `arm64` | `@aldenwangexis/yx-cli-darwin-arm64` | `yx-darwin-arm64` |
+| `linux` | `x64` | `@aldenwangexis/yx-cli-linux-x64` | `yx-linux-amd64` |
+| `linux` | `arm64` | `@aldenwangexis/yx-cli-linux-arm64` | `yx-linux-arm64` |
+| `win32` | `x64` | `@aldenwangexis/yx-cli-win32-x64` | `yx-windows-amd64.exe` |
+
+Unsupported platforms fail with a clear message.
+
+## CI Release Flow
+
+On tag `vX.Y.Z`:
+
+1. run Go and npm tests;
+2. verify `npm/yx-cli/package.json`, all platform package versions, and main package `optionalDependencies` equal `X.Y.Z`;
+3. build Go binaries once;
+4. upload the binaries as GitHub Actions artifacts;
+5. create or update GitHub Release `vX.Y.Z`;
+6. if `YX_ENABLE_NPM_PUBLISH=true`, download the same build artifacts;
+7. copy the artifacts into npm platform package `bin/` directories;
+8. publish platform npm packages first;
+9. publish the main npm package last.
+
+Publishing main last matters because it depends on the platform packages.
+
+The npm publish job is disabled by default and runs only when GitHub repository variable `YX_ENABLE_NPM_PUBLISH` is `true`.
+
+## Version Gate
+
+The shared gate is:
+
+```bash
+sh scripts/check_release_version.sh vX.Y.Z
+```
+
+It fails if:
+
+- main npm package version is not `X.Y.Z`;
+- any platform package version differs;
+- main package optional dependency pins differ.
+
+Local release check:
+
+```bash
+make release-check VERSION=vX.Y.Z
+```
+
+## Release Operator Flow
+
+For a normal feature release:
+
+```bash
+npm version --prefix npm/yx-cli X.Y.Z --no-git-tag-version
+for dir in npm/yx-cli-darwin-arm64 npm/yx-cli-linux-x64 npm/yx-cli-linux-arm64 npm/yx-cli-win32-x64; do
+  npm version --prefix "$dir" X.Y.Z --no-git-tag-version
+done
+node -e '
+const fs = require("fs");
+const pkgPath = "npm/yx-cli/package.json";
+const pkg = require("./" + pkgPath);
+for (const name of Object.keys(pkg.optionalDependencies)) pkg.optionalDependencies[name] = pkg.version;
+fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+'
+make release-check VERSION=vX.Y.Z
+git add npm/*/package.json
+git commit -m "chore: release vX.Y.Z"
+git tag vX.Y.Z
+git push origin main --tags
+```
+
+Users who do not specify a version receive npm's `latest` dist-tag. npm sets `latest` on normal publish, so default npm installs follow the newest successful npm release. Users who need a specific version can run:
+
+```bash
+npm install -g @aldenwangexis/yx-cli@X.Y.Z
+```
 
 ## GitHub Installer Coexistence
 
@@ -129,86 +193,68 @@ Prerequisites:
 
 1. npm account exists and is logged in locally.
 2. `npm whoami` returns the intended publisher.
-3. The package version matches an existing GitHub Release with all required assets.
-4. Validation gates pass.
+3. all five npm packages use the same version.
+4. platform package `bin/` directories have been prepared from the same Go build artifacts.
+5. validation gates pass.
 
-Publish:
+Publish platform packages first, then the main package:
 
 ```bash
-cd npm/yx-cli
-npm publish --access public
+for dir in npm/yx-cli-darwin-arm64 npm/yx-cli-linux-x64 npm/yx-cli-linux-arm64 npm/yx-cli-win32-x64; do
+  npm publish --access public "$dir"
+done
+npm publish --access public npm/yx-cli
 ```
 
-`--access public` is required for a public scoped package.
-
-Do not commit or print npm tokens.
+`--access public` is required for public scoped packages.
 
 ## Future Trusted Publishing
 
-Manual publish is acceptable for the first package. For long-term releases, prefer npm Trusted Publishing from GitHub Actions:
+For long-term releases, prefer npm Trusted Publishing from GitHub Actions:
 
 - no long-lived npm token in repository secrets;
 - OIDC-backed publish identity;
 - optional provenance via `npm publish --provenance`.
 
-The tag workflow includes a disabled-by-default npm publish job. It runs only when repository variable `YX_ENABLE_NPM_PUBLISH` is set to `true`.
-
 Before enabling it:
 
-1. publish the package manually once, or create/configure it in npm;
+1. publish or configure each npm package in npm;
 2. configure npm Trusted Publishing for this GitHub repository and workflow;
-3. verify `npm/yx-cli/package.json` equals the tag version;
-4. set GitHub repository variable `YX_ENABLE_NPM_PUBLISH=true`.
-
-After that, pushing tag `vX.Y.Z` publishes GitHub Release assets first, then publishes `@aldenwangexis/yx-cli@X.Y.Z` with npm provenance.
-
-## Release Operator Flow
-
-For a normal feature release:
-
-```bash
-npm version --prefix npm/yx-cli X.Y.Z --no-git-tag-version
-make release-check VERSION=vX.Y.Z
-git add npm/yx-cli/package.json
-git commit -m "chore: release vX.Y.Z"
-git tag vX.Y.Z
-git push origin main --tags
-```
-
-Users who do not specify a version receive npm's `latest` dist-tag. npm sets `latest` on normal publish, so default npm installs follow the newest successful npm release. Users who need a specific version can run:
-
-```bash
-npm install -g @aldenwangexis/yx-cli@X.Y.Z
-```
+3. set GitHub repository variable `YX_ENABLE_NPM_PUBLISH=true`.
 
 ## Validation Gates
 
-Run before publishing:
+Run before release:
 
 ```bash
-go test ./...
-sh scripts/test_install.sh
+make release-check VERSION=vX.Y.Z
+```
+
+Run package checks directly:
+
+```bash
 cd npm/yx-cli
 npm test
 npm pack --dry-run
 ```
 
-For an end-to-end local install check:
+To test platform package preparation locally:
 
 ```bash
-rm -rf npm/yx-cli/vendor
-tmp_prefix="$(mktemp -d)"
-HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 \
-  npm install --prefix "$tmp_prefix" ./npm/yx-cli
-"$tmp_prefix/node_modules/.bin/yx" --version
+mkdir -p dist
+go build -o dist/yx-darwin-arm64 ./cmd/yx
+cp dist/yx-darwin-arm64 dist/yx-linux-amd64
+cp dist/yx-darwin-arm64 dist/yx-linux-arm64
+cp dist/yx-darwin-arm64 dist/yx-windows-amd64.exe
+node npm/yx-cli/scripts/prepare-platform-packages.js dist
+npm test --prefix npm/yx-cli
 ```
-
-Use the proxy environment only when local network requires it.
 
 ## Security And Hygiene
 
-- Never download mutable `latest` during npm install; always use the package version's matching GitHub tag.
-- Keep the downloaded binary under the package `vendor/` directory.
-- Do not mutate shell profiles from the npm installer.
-- Do not commit `vendor/` or packed `.tgz` artifacts.
-- Keep npm package contents constrained with the `files` field and verify with `npm pack --dry-run`.
+- npm install must not download from GitHub Releases.
+- Do not commit generated platform package `bin/` directories.
+- Do not commit packed `.tgz` artifacts.
+- Do not mutate shell profiles from npm install.
+- Never commit npm tokens.
+- Keep npm package contents constrained with `files` and verify with `npm pack --dry-run`.

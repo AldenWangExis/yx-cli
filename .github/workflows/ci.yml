@@ -150,6 +150,27 @@ jobs:
       - name: Check release version alignment
         run: sh scripts/check_release_version.sh "${{ github.ref_name }}"
 
-      - name: Publish npm package
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Prepare npm platform packages
+        run: node npm/yx-cli/scripts/prepare-platform-packages.js dist
+
+      - name: Verify npm platform package contents
+        run: |
+          for dir in npm/yx-cli-darwin-arm64 npm/yx-cli-linux-x64 npm/yx-cli-linux-arm64 npm/yx-cli-win32-x64; do
+            npm pack --dry-run "./$dir"
+          done
+
+      - name: Publish npm platform packages
+        run: |
+          for dir in npm/yx-cli-darwin-arm64 npm/yx-cli-linux-x64 npm/yx-cli-linux-arm64 npm/yx-cli-win32-x64; do
+            npm publish --access public --provenance "./$dir"
+          done
+
+      - name: Publish npm main package
         working-directory: npm/yx-cli
         run: npm publish --access public --provenance

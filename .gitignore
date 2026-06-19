@@ -3,8 +3,9 @@
 /bin/
 /build/
 /dist/
-/npm/yx-cli/vendor/
+/npm/yx-cli-*/bin/
 /npm/yx-cli/*.tgz
+/npm/yx-cli-*/*.tgz
 *.exe
 *.dll
 *.so

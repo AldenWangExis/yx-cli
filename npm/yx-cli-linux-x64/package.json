@@ -1,0 +1,23 @@
+{
+  "name": "@aldenwangexis/yx-cli-linux-x64",
+  "version": "1.4.0",
+  "description": "Yunxiao CLI binary for Linux x64",
+  "license": "MIT",
+  "homepage": "https://github.com/AldenWangExis/yx-cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AldenWangExis/yx-cli.git"
+  },
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "bin"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -26,4 +26,21 @@ if [ "$tag" != "$expected_tag" ]; then
 	exit 1
 fi
 
-echo "release version check passed: $tag matches npm package version $package_version"
+node <<'NODE'
+const assert = require("node:assert/strict");
+const path = require("node:path");
+const mainPkg = require("./npm/yx-cli/package.json");
+const { platformPackages } = require("./npm/yx-cli/scripts/packages");
+
+for (const platformPackage of platformPackages) {
+  const pkg = require(path.join(process.cwd(), "npm", platformPackage.directory, "package.json"));
+  assert.equal(pkg.version, mainPkg.version, `${pkg.name}: version must match ${mainPkg.version}`);
+  assert.equal(
+    mainPkg.optionalDependencies[pkg.name],
+    mainPkg.version,
+    `${pkg.name}: optionalDependency must be pinned to ${mainPkg.version}`,
+  );
+}
+NODE
+
+echo "release version check passed: $tag matches all npm package versions"

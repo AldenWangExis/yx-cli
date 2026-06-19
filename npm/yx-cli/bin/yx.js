@@ -4,12 +4,26 @@
 const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
-const { assetNameForPlatform } = require("../scripts/platform");
+const { platformPackageFor } = require("../scripts/packages");
 
 const pkg = require("../package.json");
-const assetName = assetNameForPlatform(process.platform, process.arch);
-const binaryName = process.platform === "win32" ? "yx.exe" : "yx";
-const binaryPath = path.join(__dirname, "..", "vendor", binaryName);
+const platformPackage = platformPackageFor(process.platform, process.arch);
+let packageRoot;
+
+try {
+  packageRoot = path.dirname(require.resolve(`${platformPackage.name}/package.json`));
+} catch (error) {
+  const localPackageRoot = path.join(__dirname, "..", "..", platformPackage.directory);
+  if (fs.existsSync(path.join(localPackageRoot, "package.json"))) {
+    packageRoot = localPackageRoot;
+  } else {
+    console.error(`yx npm wrapper could not find platform package ${platformPackage.name}.`);
+    console.error("Try reinstalling: npm install -g @aldenwangexis/yx-cli");
+    process.exit(1);
+  }
+}
+
+const binaryPath = path.join(packageRoot, "bin", platformPackage.binary);
 
 if (!fs.existsSync(binaryPath)) {
   console.error(`yx npm wrapper could not find installed binary at ${binaryPath}`);
@@ -22,8 +36,8 @@ const result = spawnSync(binaryPath, process.argv.slice(2), {
   env: {
     ...process.env,
     YX_INSTALL_CHANNEL: "npm",
-    YX_NPM_ASSET: assetName,
     YX_NPM_PACKAGE: pkg.name,
+    YX_NPM_PLATFORM_PACKAGE: platformPackage.name,
   },
 });
 
