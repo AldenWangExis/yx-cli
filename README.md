@@ -4,30 +4,37 @@
 
 ## Install
 
-Install `yx`:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/main/scripts/install.sh | sh
-```
-
-The installer downloads the latest GitHub Release by default, writes `yx` to `~/.local/bin`, adds that directory to your shell profile when needed, and prints the restart or `source` command required for the current terminal.
-
-The installer supports macOS arm64, Linux amd64, and Linux arm64. Ubuntu users can use the same install command; make sure `curl` is installed first.
-
-Node/npm users can install the npm wrapper instead:
+Install `yx` with npm:
 
 ```bash
 npm install -g @aldenwangexis/yx-cli
 ```
 
-If both installers are used, `command -v yx` shows which one wins on `PATH`.
-The npm channel installs a platform-specific npm binary package and does not download from GitHub Releases during install. The npm package version still matches the GitHub Release tag, so `@aldenwangexis/yx-cli@1.6.0` and GitHub Release `v1.6.0` refer to the same Go CLI version.
+The npm channel installs a platform-specific npm binary package and does not download from GitHub Releases during install.
 
-Install a specific release when you need a pinned version:
+Install a specific npm version when you need a pinned version:
 
 ```bash
-YX_INSTALL_VERSION=v1.0.0 curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/main/scripts/install.sh | sh
+npm install -g @aldenwangexis/yx-cli@1.6.0
 ```
+
+The npm package version matches the GitHub Release tag, so `@aldenwangexis/yx-cli@1.6.0` and GitHub Release `v1.6.0` refer to the same Go CLI version.
+
+You can also install from GitHub Release assets:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/main/scripts/install.sh | sh
+```
+
+The GitHub installer downloads the latest Release by default, writes `yx` to `~/.local/bin`, supports macOS arm64, Linux amd64, and Linux arm64, and can be pinned with `YX_INSTALL_VERSION=vX.Y.Z`. Windows users can download `yx-windows-amd64.exe` from the GitHub Release assets and place it in a directory on `PATH`.
+
+Install from source:
+
+```bash
+go install github.com/AldenWangExis/yx-cli/cmd/yx@latest
+```
+
+If multiple installers are used, `command -v yx` shows which one wins on `PATH`.
 
 Verify:
 
@@ -36,8 +43,6 @@ yx --version
 yx --help
 yx auth status
 ```
-
-Windows users can download `yx-windows-amd64.exe` from the GitHub Release assets and place it in a directory on `PATH`.
 
 ## Configure
 

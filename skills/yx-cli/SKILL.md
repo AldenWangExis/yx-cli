@@ -8,11 +8,13 @@ description: >-
   or translating a Yunxiao terminal task into an appropriate `yx` workflow.
   Prefer this skill over raw OpenAPI unless yx lacks the needed command.
 compatibility: >-
-  Requires shell access. Uses local `yx` when installed; the normal macOS
-  install path is `~/.local/bin/yx`. Installation and real Yunxiao operations
-  require network. Real operations require a Yunxiao personal access token;
-  `yx auth login` can discover available organizations and store the selected
-  organization ID. Some pipeline workflows need a Codeup service connection ID.
+  Requires shell access. Uses local `yx` when installed. npm global installs
+  usually expose `yx` through the active Node prefix; GitHub Release installs
+  usually write `yx` to `~/.local/bin/yx`. Installation and real Yunxiao
+  operations require network. Real operations require a Yunxiao personal access
+  token; `yx auth login` can discover available organizations and store the
+  selected organization ID. Some pipeline workflows need a Codeup service
+  connection ID.
 ---
 
 # yx-cli
@@ -32,18 +34,30 @@ else
 fi
 ```
 
-If `yx` is missing, guide installation with the official installer:
+If `yx` is missing, guide installation with npm:
+
+```bash
+npm install -g @aldenwangexis/yx-cli
+```
+
+Run installation only when the user asked to install/setup or approved it. Otherwise show the command and explain that it installs the `yx` shim into the active npm global prefix and a platform-specific binary package from the npm registry.
+
+Pin a version only when the user asks for reproducibility:
+
+```bash
+npm install -g @aldenwangexis/yx-cli@1.6.0
+```
+
+GitHub Release binaries remain available for users who cannot or do not want to use npm:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/main/scripts/install.sh | sh
 ```
 
-Run the installer only when the user asked to install/setup or approved it. Otherwise show the command and explain that it installs `yx` to `~/.local/bin` and may require a new shell or sourcing the printed profile file.
-
-The installer downloads the latest release by default and shows curl download progress. Pin a version only when the user asks for reproducibility:
+Source install is also available when Go is installed:
 
 ```bash
-YX_INSTALL_VERSION=v1.2.0 curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/main/scripts/install.sh | sh
+go install github.com/AldenWangExis/yx-cli/cmd/yx@latest
 ```
 
 ## Core Rules
@@ -189,7 +203,7 @@ Use `yx pipeline run logs --help` for job, step, build, offset, and limit flags.
 
 | Symptom | Direction |
 |---|---|
-| `yx: command not found` | Install with the official curl command, then verify PATH/new shell. |
+| `yx: command not found` | Install with npm, then verify `command -v yx` and the active npm global prefix. |
 | `unknown flag: --version` | Binary is stale; reinstall or rebuild. |
 | Not logged in | Run `yx auth login`; then `yx auth status`. |
 | Organization ID unknown | Run `yx org list`; then `yx org use <org-id>`. |

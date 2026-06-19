@@ -1,6 +1,6 @@
 # @aldenwangexis/yx-cli
 
-npm wrapper for `yx`, the Alibaba Cloud Yunxiao command line client.
+npm package for `yx`, the Alibaba Cloud Yunxiao command line client.
 
 Install:
 
