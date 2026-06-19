@@ -1,6 +1,6 @@
 {
   "name": "@aldenwangexis/yx-cli",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Yunxiao command line client",
   "license": "MIT",
   "homepage": "https://github.com/AldenWangExis/yx-cli#readme",
@@ -18,10 +18,10 @@
     "test": "node scripts/install.test.js && node scripts/verify-packages.js"
   },
   "optionalDependencies": {
-    "@aldenwangexis/yx-cli-darwin-arm64": "1.6.0",
-    "@aldenwangexis/yx-cli-linux-x64": "1.6.0",
-    "@aldenwangexis/yx-cli-linux-arm64": "1.6.0",
-    "@aldenwangexis/yx-cli-win32-x64": "1.6.0"
+    "@aldenwangexis/yx-cli-darwin-arm64": "1.6.1",
+    "@aldenwangexis/yx-cli-linux-x64": "1.6.1",
+    "@aldenwangexis/yx-cli-linux-arm64": "1.6.1",
+    "@aldenwangexis/yx-cli-win32-x64": "1.6.1"
   },
   "files": [
     "bin",

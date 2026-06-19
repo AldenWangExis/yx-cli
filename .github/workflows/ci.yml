@@ -136,7 +136,6 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') && vars.YX_ENABLE_NPM_PUBLISH == 'true'
     permissions:
       contents: read
-      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -166,11 +165,15 @@ jobs:
           done
 
       - name: Publish npm platform packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           for dir in npm/yx-cli-darwin-arm64 npm/yx-cli-linux-x64 npm/yx-cli-linux-arm64 npm/yx-cli-win32-x64; do
-            npm publish --access public --provenance "./$dir"
+            npm publish --access public "./$dir"
           done
 
       - name: Publish npm main package
         working-directory: npm/yx-cli
-        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
