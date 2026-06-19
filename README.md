@@ -21,6 +21,7 @@ npm install -g @aldenwangexis/yx-cli
 ```
 
 If both installers are used, `command -v yx` shows which one wins on `PATH`.
+The npm package version maps to the same GitHub Release tag, so `@aldenwangexis/yx-cli@1.6.0` installs the `v1.6.0` binary.
 
 Install a specific release when you need a pinned version:
 

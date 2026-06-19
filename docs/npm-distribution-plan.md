@@ -18,6 +18,14 @@ Why scoped:
 
 ## Release Source Of Truth
 
+Git tags are the release transaction boundary. A successful release must publish the same version to every channel:
+
+1. tag `vX.Y.Z`;
+2. GitHub Release `vX.Y.Z`;
+3. Release assets built with CLI version `vX.Y.Z`;
+4. npm package `@aldenwangexis/yx-cli@X.Y.Z`;
+5. npm package install downloads GitHub Release `vX.Y.Z`.
+
 GitHub Releases remain the canonical binary source. npm package versions must map one-to-one to Git tags:
 
 | Git tag | npm version | downloaded release |
@@ -28,6 +36,14 @@ GitHub Releases remain the canonical binary source. npm package versions must ma
 Do not publish an npm version unless the matching GitHub Release assets already exist.
 
 Current branch note: the npm package is set to `1.4.0` because `v1.4.0` already has Release assets and is useful for validating the npm installer end to end. Before publishing a new public npm release for current CLI features, create a new passing GitHub tag/release and bump `npm/yx-cli/package.json` to that version.
+
+The release workflow enforces this with:
+
+```bash
+sh scripts/check_release_version.sh vX.Y.Z
+```
+
+If `npm/yx-cli/package.json` is not `X.Y.Z`, the tag workflow fails before binary build and npm publish.
 
 ## User UX
 
@@ -135,7 +151,35 @@ Manual publish is acceptable for the first package. For long-term releases, pref
 - OIDC-backed publish identity;
 - optional provenance via `npm publish --provenance`.
 
-Only add a tag-triggered npm publish job after the package exists in npm and Trusted Publishing is configured in npm package settings.
+The tag workflow includes a disabled-by-default npm publish job. It runs only when repository variable `YX_ENABLE_NPM_PUBLISH` is set to `true`.
+
+Before enabling it:
+
+1. publish the package manually once, or create/configure it in npm;
+2. configure npm Trusted Publishing for this GitHub repository and workflow;
+3. verify `npm/yx-cli/package.json` equals the tag version;
+4. set GitHub repository variable `YX_ENABLE_NPM_PUBLISH=true`.
+
+After that, pushing tag `vX.Y.Z` publishes GitHub Release assets first, then publishes `@aldenwangexis/yx-cli@X.Y.Z` with npm provenance.
+
+## Release Operator Flow
+
+For a normal feature release:
+
+```bash
+npm version --prefix npm/yx-cli X.Y.Z --no-git-tag-version
+make release-check VERSION=vX.Y.Z
+git add npm/yx-cli/package.json
+git commit -m "chore: release vX.Y.Z"
+git tag vX.Y.Z
+git push origin main --tags
+```
+
+Users who do not specify a version receive npm's `latest` dist-tag. npm sets `latest` on normal publish, so default npm installs follow the newest successful npm release. Users who need a specific version can run:
+
+```bash
+npm install -g @aldenwangexis/yx-cli@X.Y.Z
+```
 
 ## Validation Gates
 
