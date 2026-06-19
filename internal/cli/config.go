@@ -28,6 +28,7 @@ type Options struct {
 	PipelineUseCase     PipelineUseCase
 	OrganizationUseCase OrganizationUseCase
 	AuthAccountResolver AuthAccountResolver
+	UpdateChecker       UpdateChecker
 }
 
 type AuthAccount struct {

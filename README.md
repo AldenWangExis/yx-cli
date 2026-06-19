@@ -128,6 +128,7 @@ yx pipeline logs <run-id> --follow
 - Add `--json` to list and detail commands for machine-readable output.
 - Add `--dry-run` to write commands to preview without sending write requests.
 - Add `--yes` to confirmed write commands when you want non-interactive execution.
+- `yx` may check GitHub Releases once per day and print update hints to stderr. Disable with `YX_NO_UPDATE_CHECK=1`.
 - Set `profiles.<name>.safety.confirmWrites true` to require confirmation for write commands.
 
 ## Development

@@ -53,6 +53,7 @@ YX_INSTALL_VERSION=v1.2.0 curl -fsSL https://raw.githubusercontent.com/AldenWang
 - Use `--dry-run` before writes unless the user explicitly asked for a real mutation.
 - Use `--yes` only after the user approved non-interactive writes.
 - Treat `repo delete`, `workitem/issue delete`, and `mr/pr close` as destructive or state-changing operations; prefer `--dry-run` first.
+- Update hints go to stderr and are low-frequency; set `YX_NO_UPDATE_CHECK=1` for scripts when silence matters.
 - Never print raw PATs, service connection IDs, credentials, or credential-bearing remote URLs.
 - If uncertain about flags, run `yx <command> --help` instead of guessing.
 - Report exact commands run, with secrets redacted.

@@ -38,6 +38,7 @@ func NewRootCommandWithOptions(opts Options) *cobra.Command {
 	cmd.AddCommand(newPipelineCommand(opts))
 	cmd.AddCommand(newVersionCommand())
 	applyHelpTemplate(cmd)
+	installUpdateCheckHooks(cmd, opts)
 
 	return cmd
 }
@@ -77,5 +78,30 @@ func applyHelpTemplate(cmd *cobra.Command) {
 	cmd.SetHelpTemplate(helpTemplate)
 	for _, child := range cmd.Commands() {
 		applyHelpTemplate(child)
+	}
+}
+
+func installUpdateCheckHooks(cmd *cobra.Command, opts Options) {
+	if cmd.HasSubCommands() {
+		for _, child := range cmd.Commands() {
+			installUpdateCheckHooks(child, opts)
+		}
+	}
+	if cmd.Run == nil && cmd.RunE == nil {
+		return
+	}
+	previousRun := cmd.Run
+	previousRunE := cmd.RunE
+	if previousRun != nil {
+		cmd.Run = func(cmd *cobra.Command, args []string) {
+			maybeRunUpdateCheck(cmd.Context(), cmd.Root().ErrOrStderr(), opts, ContextFromCommand(cmd), cmd.CommandPath())
+			previousRun(cmd, args)
+		}
+	}
+	if previousRunE != nil {
+		cmd.RunE = func(cmd *cobra.Command, args []string) error {
+			maybeRunUpdateCheck(cmd.Context(), cmd.Root().ErrOrStderr(), opts, ContextFromCommand(cmd), cmd.CommandPath())
+			return previousRunE(cmd, args)
+		}
 	}
 }
