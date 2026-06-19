@@ -35,7 +35,3 @@ go.work.sum
 
 # Local planning docs
 /docs/
-!/docs/
-!/docs/linux-support-implementation.md
-!/docs/member-and-workitem-assignment-spec.md
-!/docs/npm-distribution-plan.md
