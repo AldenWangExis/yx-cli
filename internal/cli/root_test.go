@@ -60,6 +60,8 @@ func TestRootVersionFlagAndCommand(t *testing.T) {
 }
 
 func TestRootUpdateCheckWritesHintToStderr(t *testing.T) {
+	t.Setenv("CI", "")
+
 	oldVersion := Version
 	Version = "v1.0.0"
 	t.Cleanup(func() { Version = oldVersion })

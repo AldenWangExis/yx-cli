@@ -59,3 +59,27 @@ func TestGitHubUpdateCheckerUsesCache(t *testing.T) {
 		t.Fatalf("expected cache hit, notice=%+v calls=%d", notice, calls)
 	}
 }
+
+func TestGitHubUpdateCheckerUsesNPMUpdateCommandForNPMInstall(t *testing.T) {
+	t.Setenv("YX_INSTALL_CHANNEL", "npm")
+	t.Setenv("YX_NPM_PACKAGE", "@aldenwangexis/yx-cli")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"tag_name":"v1.4.0"}`))
+	}))
+	defer server.Close()
+
+	checker := NewGitHubUpdateChecker(UpdateCheckerConfig{
+		LatestURL: server.URL,
+		CachePath: filepath.Join(t.TempDir(), "update.json"),
+		Current:   "v1.0.0",
+	})
+
+	notice, err := checker.Check(UpdateCheckContext{Context: context.Background()})
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	if notice.Command != "npm update -g @aldenwangexis/yx-cli" {
+		t.Fatalf("unexpected update command: %q", notice.Command)
+	}
+}

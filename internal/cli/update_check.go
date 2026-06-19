@@ -15,6 +15,7 @@ import (
 const (
 	updateCheckOptOutEnv = "YX_NO_UPDATE_CHECK"
 	updateCheckLatestURL = "https://api.github.com/repos/AldenWangExis/yx-cli/releases/latest"
+	defaultNPMPackage    = "@aldenwangexis/yx-cli"
 )
 
 type UpdateChecker interface {
@@ -84,8 +85,19 @@ func (c *GitHubUpdateChecker) Check(ctx UpdateCheckContext) (UpdateNotice, error
 		Available: true,
 		Current:   c.config.Current,
 		Latest:    latest,
-		Command:   fmt.Sprintf("YX_INSTALL_VERSION=%s curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/main/scripts/install.sh | sh", latest),
+		Command:   updateCommand(latest),
 	}, nil
+}
+
+func updateCommand(latest string) string {
+	if os.Getenv("YX_INSTALL_CHANNEL") == "npm" {
+		pkg := strings.TrimSpace(os.Getenv("YX_NPM_PACKAGE"))
+		if pkg == "" {
+			pkg = defaultNPMPackage
+		}
+		return fmt.Sprintf("npm update -g %s", pkg)
+	}
+	return fmt.Sprintf("YX_INSTALL_VERSION=%s curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/main/scripts/install.sh | sh", latest)
 }
 
 func (c *GitHubUpdateChecker) cachedLatest() (string, bool) {

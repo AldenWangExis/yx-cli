@@ -30,6 +30,17 @@ jobs:
       - name: Run tests
         run: go test ./...
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Test npm wrapper
+        working-directory: npm/yx-cli
+        run: |
+          npm test
+          npm pack --dry-run
+
   build:
     name: Build ${{ matrix.name }}
     runs-on: ubuntu-latest

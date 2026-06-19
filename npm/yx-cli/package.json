@@ -1,0 +1,32 @@
+{
+  "name": "@aldenwangexis/yx-cli",
+  "version": "1.4.0",
+  "description": "Yunxiao command line client",
+  "license": "MIT",
+  "homepage": "https://github.com/AldenWangExis/yx-cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AldenWangExis/yx-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AldenWangExis/yx-cli/issues"
+  },
+  "bin": {
+    "yx": "bin/yx.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js",
+    "test": "node scripts/install.test.js"
+  },
+  "files": [
+    "bin",
+    "scripts",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

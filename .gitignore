@@ -3,6 +3,8 @@
 /bin/
 /build/
 /dist/
+/npm/yx-cli/vendor/
+/npm/yx-cli/*.tgz
 *.exe
 *.dll
 *.so
@@ -35,3 +37,4 @@ go.work.sum
 !/docs/
 !/docs/linux-support-implementation.md
 !/docs/member-and-workitem-assignment-spec.md
+!/docs/npm-distribution-plan.md

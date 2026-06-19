@@ -14,6 +14,14 @@ The installer downloads the latest GitHub Release by default, writes `yx` to `~/
 
 The installer supports macOS arm64, Linux amd64, and Linux arm64. Ubuntu users can use the same install command; make sure `curl` is installed first.
 
+Node/npm users can install the npm wrapper instead:
+
+```bash
+npm install -g @aldenwangexis/yx-cli
+```
+
+If both installers are used, `command -v yx` shows which one wins on `PATH`.
+
 Install a specific release when you need a pinned version:
 
 ```bash
