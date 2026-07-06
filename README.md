@@ -15,10 +15,10 @@ The npm channel installs a platform-specific npm binary package and does not dow
 Install a specific npm version when you need a pinned version:
 
 ```bash
-npm install -g @aldenwangexis/yx-cli@1.6.0
+npm install -g @aldenwangexis/yx-cli@1.7.0
 ```
 
-The npm package version matches the GitHub Release tag, so `@aldenwangexis/yx-cli@1.6.0` and GitHub Release `v1.6.0` refer to the same Go CLI version.
+The npm package version matches the GitHub Release tag, so `@aldenwangexis/yx-cli@1.7.0` and GitHub Release `v1.7.0` refer to the same Go CLI version.
 
 You can also install from GitHub Release assets:
 
@@ -98,6 +98,16 @@ yx repo commit list <repo> --ref master
 yx repo file view <repo> test.py --ref master
 ```
 
+Repository member commands use organization `USER_ID` values. Access levels accept `viewer` (`20`), `developer` (`30`), or `maintainer` (`40`):
+
+```bash
+yx member search --name <name>
+yx repo member list <repo>
+yx repo member add <repo> --user-id <user-id> --access-level developer --dry-run
+yx repo member update <repo> --user-id <user-id> --access-level maintainer --dry-run
+yx repo member remove <repo> --user-id <user-id> --dry-run
+```
+
 Merge requests:
 
 ```bash
@@ -125,13 +135,6 @@ yx workitem delete <workitem-id> --dry-run
 ```
 
 `yx issue ...` is an alias for `yx workitem ...`. Use `--assignee @me` for the current user, or `yx member search --name <name>` then pass the returned `USER_ID`. Repository-based issue lists require an explicit repo-to-project mapping:
-
-Repository member commands use organization `USER_ID` values. Access levels accept `viewer` (`20`), `developer` (`30`), or `maintainer` (`40`):
-
-```bash
-yx member search --name <name>
-yx repo member add <repo> --user-id <user-id> --access-level developer --dry-run
-```
 
 ```bash
 yx config set profiles.default.repoProjectMap.<repo> <project-id>
@@ -183,7 +186,17 @@ Pushes to `main` run tests. Tags matching `v*` run tests, build release binaries
 Release a new version:
 
 ```bash
-git tag -a v0.2.0 -m "v0.2.0"
-git push origin main v0.2.0
-git push codeup main v0.2.0
+git tag -a v1.7.0 -m "v1.7.0"
+git push origin main v1.7.0
+git push codeup main v1.7.0
+```
+
+The npm distribution publishes four platform binary packages first, then the main wrapper package:
+
+```bash
+npm publish --access public ./npm/yx-cli-darwin-arm64
+npm publish --access public ./npm/yx-cli-linux-x64
+npm publish --access public ./npm/yx-cli-linux-arm64
+npm publish --access public ./npm/yx-cli-win32-x64
+cd npm/yx-cli && npm publish --access public
 ```

@@ -45,7 +45,7 @@ Run installation only when the user asked to install/setup or approved it. Other
 Pin a version only when the user asks for reproducibility:
 
 ```bash
-npm install -g @aldenwangexis/yx-cli@1.6.0
+npm install -g @aldenwangexis/yx-cli@1.7.0
 ```
 
 GitHub Release binaries remain available for users who cannot or do not want to use npm:
@@ -165,6 +165,8 @@ yx repo member add <repo> --user-id <user-id> --access-level developer --dry-run
 yx repo member update <repo> --user-id <user-id> --access-level maintainer --dry-run
 yx repo member remove <repo> --user-id <user-id> --dry-run
 ```
+
+If a requested member is inherited from a Codeup group or organization source, explain that direct repo update/remove may fail and the permission should be changed at the inherited source. Do not guess the source; use `yx repo member list <repo>` and report the displayed `SOURCE`/`INHERITED` fields.
 
 For PR/MR work, prefer `yx pr ...` if the user speaks GitHub vocabulary, and `yx mr ...` if they speak Codeup/Yunxiao vocabulary.
 
