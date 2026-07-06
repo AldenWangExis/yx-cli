@@ -216,6 +216,84 @@ func TestRepositoryAdapterRepositoryOperations(t *testing.T) {
 	}
 }
 
+func TestRepositoryAdapterRepositoryMemberOperations(t *testing.T) {
+	var deleteCalls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("x-yunxiao-token") != "token-1" {
+			t.Fatalf("missing token header")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/oapi/v1/codeup/organizations/org-1/repositories/2813490/members":
+			_, _ = w.Write([]byte(`[{"id":1,"userId":"u1","name":"A","email":"a@example.com","accessLevel":30,"expiresAt":"2026-12-31","inheritedGroup":{"nameWithNamespace":"org/group"}}]`))
+		case r.Method == http.MethodPost && r.URL.Path == "/oapi/v1/codeup/organizations/org-1/repositories/2813490/members":
+			if r.URL.Query().Get("userIds") != "u2" || r.URL.Query().Get("accessLevel") != "30" || r.URL.Query().Get("expiresAt") != "2026-12-31" {
+				t.Fatalf("unexpected add query: %s", r.URL.RawQuery)
+			}
+			_, _ = w.Write([]byte(`[{"id":2,"userId":"u2","name":"B","accessLevel":30}]`))
+		case r.Method == http.MethodPut && r.URL.Path == "/oapi/v1/codeup/organizations/org-1/repositories/2813490/members/u2":
+			if r.URL.Query().Get("accessLevel") != "40" {
+				t.Fatalf("unexpected update query: %s", r.URL.RawQuery)
+			}
+			_, _ = w.Write([]byte(`{"data":{"userId":"u2","name":"B","accessLevel":"40"}}`))
+		case r.Method == http.MethodDelete && r.URL.Path == "/oapi/v1/codeup/organizations/org-1/repositories/2813490/members/u2":
+			deleteCalls++
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	adapter := NewRepositoryAdapter(yunxiao.ClientConfig{
+		BaseURL:        server.URL,
+		Token:          "token-1",
+		OrganizationID: "org-1",
+		Region:         "center",
+	})
+
+	members, err := adapter.ListRepositoryMembers(context.Background(), "2813490")
+	if err != nil {
+		t.Fatalf("expected member list, got: %v", err)
+	}
+	if len(members) != 1 || members[0].UserID != "u1" || members[0].Access != "developer" || !members[0].Inherited {
+		t.Fatalf("unexpected members: %+v", members)
+	}
+
+	added, err := adapter.AddRepositoryMember(context.Background(), app.AddRepositoryMemberInput{
+		Repo:        "2813490",
+		UserID:      "u2",
+		AccessLevel: "30",
+		ExpiresAt:   "2026-12-31",
+	})
+	if err != nil {
+		t.Fatalf("expected add member, got: %v", err)
+	}
+	if added.UserID != "u2" || added.Access != "developer" {
+		t.Fatalf("unexpected add result: %+v", added)
+	}
+
+	updated, err := adapter.UpdateRepositoryMember(context.Background(), app.UpdateRepositoryMemberInput{
+		Repo:        "2813490",
+		UserID:      "u2",
+		AccessLevel: "40",
+	})
+	if err != nil {
+		t.Fatalf("expected update member, got: %v", err)
+	}
+	if updated.Access != "maintainer" {
+		t.Fatalf("unexpected update result: %+v", updated)
+	}
+
+	removed, err := adapter.RemoveRepositoryMember(context.Background(), app.RemoveRepositoryMemberInput{Repo: "2813490", UserID: "u2"})
+	if err != nil {
+		t.Fatalf("expected remove member, got: %v", err)
+	}
+	if removed.UserID != "u2" || deleteCalls != 1 {
+		t.Fatalf("unexpected remove result=%+v calls=%d", removed, deleteCalls)
+	}
+}
+
 func TestRepositoryAdapterErrorsDoNotLeakToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("x-request-id", "req-1")

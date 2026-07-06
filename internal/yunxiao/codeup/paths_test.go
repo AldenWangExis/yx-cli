@@ -19,6 +19,12 @@ func TestCodeupPathsShareCenterOrganizationRootAndEscapeIdentifiers(t *testing.T
 	if got, want := paths.repositoryPath("group/demo"), "/oapi/v1/codeup/organizations/org%2F1/repositories/group%2Fdemo"; got != want {
 		t.Fatalf("repository path = %q, want %q", got, want)
 	}
+	if got, want := paths.repositoryMembersPath("group/demo"), "/oapi/v1/codeup/organizations/org%2F1/repositories/group%2Fdemo/members"; got != want {
+		t.Fatalf("repository members path = %q, want %q", got, want)
+	}
+	if got, want := paths.repositoryMemberPath("group/demo", "user/1"), "/oapi/v1/codeup/organizations/org%2F1/repositories/group%2Fdemo/members/user%2F1"; got != want {
+		t.Fatalf("repository member path = %q, want %q", got, want)
+	}
 	if got, want := paths.organizationChangeRequestsPath(), "/oapi/v1/codeup/organizations/org%2F1/changeRequests"; got != want {
 		t.Fatalf("organization change requests path = %q, want %q", got, want)
 	}
@@ -41,6 +47,12 @@ func TestCodeupPathsUseRegionRoot(t *testing.T) {
 	}
 	if got, want := paths.repositoryPath("group/demo"), "/oapi/v1/codeup/repositories/group%2Fdemo"; got != want {
 		t.Fatalf("repository path = %q, want %q", got, want)
+	}
+	if got, want := paths.repositoryMembersPath("group/demo"), "/oapi/v1/codeup/repositories/group%2Fdemo/members"; got != want {
+		t.Fatalf("repository members path = %q, want %q", got, want)
+	}
+	if got, want := paths.repositoryMemberPath("group/demo", "user/1"), "/oapi/v1/codeup/repositories/group%2Fdemo/members/user%2F1"; got != want {
+		t.Fatalf("repository member path = %q, want %q", got, want)
 	}
 	if got, want := paths.organizationChangeRequestsPath(), "/oapi/v1/codeup/changeRequests"; got != want {
 		t.Fatalf("organization change requests path = %q, want %q", got, want)

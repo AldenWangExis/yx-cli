@@ -95,6 +95,90 @@ func (a *RepositoryAdapter) DeleteRepository(ctx context.Context, repo string) (
 	return deleted, nil
 }
 
+func (a *RepositoryAdapter) ListRepositoryMembers(ctx context.Context, repo string) ([]app.RepositoryMember, error) {
+	paths := newCodeupPaths(a.client)
+	data, err := a.client.DoJSON(ctx, http.MethodGet, paths.repositoryMembersPath(repo), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	return decodeRepositoryMembers(data)
+}
+
+func (a *RepositoryAdapter) AddRepositoryMember(ctx context.Context, input app.AddRepositoryMemberInput) (app.RepositoryMember, error) {
+	accessLevel, err := strconv.Atoi(input.AccessLevel)
+	if err != nil {
+		return app.RepositoryMember{}, err
+	}
+	query := url.Values{}
+	query.Set("userIds", input.UserID)
+	query.Set("accessLevel", strconv.Itoa(accessLevel))
+	if input.ExpiresAt != "" {
+		query.Set("expiresAt", input.ExpiresAt)
+	}
+	paths := newCodeupPaths(a.client)
+	data, err := a.client.DoJSON(ctx, http.MethodPost, paths.repositoryMembersPath(input.Repo), query, nil)
+	if err != nil {
+		return app.RepositoryMember{}, err
+	}
+	member, err := decodeRepositoryMember(data)
+	if err != nil {
+		return app.RepositoryMember{}, err
+	}
+	if member.UserID == "" {
+		member.UserID = input.UserID
+	}
+	if member.AccessLevel == 0 {
+		member.AccessLevel = accessLevel
+		member.Access = app.RepositoryAccessLevelName(accessLevel)
+	}
+	return member, nil
+}
+
+func (a *RepositoryAdapter) UpdateRepositoryMember(ctx context.Context, input app.UpdateRepositoryMemberInput) (app.RepositoryMember, error) {
+	accessLevel, err := strconv.Atoi(input.AccessLevel)
+	if err != nil {
+		return app.RepositoryMember{}, err
+	}
+	query := url.Values{}
+	query.Set("accessLevel", strconv.Itoa(accessLevel))
+	if input.ExpiresAt != "" {
+		query.Set("expiresAt", input.ExpiresAt)
+	}
+	paths := newCodeupPaths(a.client)
+	data, err := a.client.DoJSON(ctx, http.MethodPut, paths.repositoryMemberPath(input.Repo, input.UserID), query, nil)
+	if err != nil {
+		return app.RepositoryMember{}, err
+	}
+	member, err := decodeRepositoryMember(data)
+	if err != nil {
+		return app.RepositoryMember{}, err
+	}
+	if member.UserID == "" {
+		member.UserID = input.UserID
+	}
+	if member.AccessLevel == 0 {
+		member.AccessLevel = accessLevel
+		member.Access = app.RepositoryAccessLevelName(accessLevel)
+	}
+	return member, nil
+}
+
+func (a *RepositoryAdapter) RemoveRepositoryMember(ctx context.Context, input app.RemoveRepositoryMemberInput) (app.RepositoryMember, error) {
+	paths := newCodeupPaths(a.client)
+	data, err := a.client.DoJSON(ctx, http.MethodDelete, paths.repositoryMemberPath(input.Repo, input.UserID), nil, nil)
+	if err != nil {
+		return app.RepositoryMember{}, err
+	}
+	member, err := decodeRepositoryMember(data)
+	if err != nil {
+		return app.RepositoryMember{}, err
+	}
+	if member.UserID == "" {
+		member.UserID = input.UserID
+	}
+	return member, nil
+}
+
 func (a *RepositoryAdapter) ListBranches(ctx context.Context, repo string) ([]app.BranchListItem, error) {
 	paths := newCodeupPaths(a.client)
 	data, err := a.client.DoJSON(ctx, http.MethodGet, paths.repositoryBranchesPath(repo), nil, nil)

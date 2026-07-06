@@ -52,6 +52,30 @@ type fileResponse struct {
 	Content  string `json:"content"`
 }
 
+type repositoryMemberResponse struct {
+	UserID         string          `json:"userId"`
+	ID             json.RawMessage `json:"id"`
+	Name           string          `json:"name"`
+	Username       string          `json:"username"`
+	Email          string          `json:"email"`
+	AccessLevel    json.RawMessage `json:"accessLevel"`
+	ExpiresAt      string          `json:"expiresAt"`
+	Inherited      json.RawMessage `json:"inherited"`
+	InheritedGroup struct {
+		Name              string `json:"name"`
+		NameWithNamespace string `json:"nameWithNamespace"`
+		PathWithNamespace string `json:"pathWithNamespace"`
+	} `json:"inheritedGroup"`
+	Source string `json:"source"`
+	User   struct {
+		UserID   string          `json:"userId"`
+		ID       json.RawMessage `json:"id"`
+		Name     string          `json:"name"`
+		Username string          `json:"username"`
+		Email    string          `json:"email"`
+	} `json:"user"`
+}
+
 type changeRequestResponse struct {
 	ID           int64  `json:"id"`
 	LocalID      int64  `json:"localId"`
@@ -174,6 +198,115 @@ func decodeFile(data []byte) (app.RepositoryFile, error) {
 	}, nil
 }
 
+func decodeRepositoryMembers(data []byte) ([]app.RepositoryMember, error) {
+	var response []repositoryMemberResponse
+	if err := json.Unmarshal(data, &response); err != nil {
+		var envelope struct {
+			Data    []repositoryMemberResponse `json:"data"`
+			Members []repositoryMemberResponse `json:"members"`
+			Items   []repositoryMemberResponse `json:"items"`
+		}
+		if envelopeErr := json.Unmarshal(data, &envelope); envelopeErr != nil {
+			return nil, fmt.Errorf("decode repository members: %w", err)
+		}
+		switch {
+		case envelope.Data != nil:
+			response = envelope.Data
+		case envelope.Members != nil:
+			response = envelope.Members
+		default:
+			response = envelope.Items
+		}
+	}
+	members := make([]app.RepositoryMember, 0, len(response))
+	for _, member := range response {
+		members = append(members, repositoryMember(member))
+	}
+	return members, nil
+}
+
+func decodeRepositoryMember(data []byte) (app.RepositoryMember, error) {
+	if len(data) == 0 {
+		return app.RepositoryMember{}, nil
+	}
+	var response repositoryMemberResponse
+	if err := json.Unmarshal(data, &response); err != nil {
+		var list []repositoryMemberResponse
+		if listErr := json.Unmarshal(data, &list); listErr == nil && len(list) > 0 {
+			return repositoryMember(list[0]), nil
+		}
+		var envelope struct {
+			Data   repositoryMemberResponse `json:"data"`
+			Member repositoryMemberResponse `json:"member"`
+		}
+		if envelopeErr := json.Unmarshal(data, &envelope); envelopeErr != nil {
+			return app.RepositoryMember{}, fmt.Errorf("decode repository member: %w", err)
+		}
+		if envelope.Data.UserID != "" || len(envelope.Data.ID) > 0 || envelope.Data.User.UserID != "" {
+			response = envelope.Data
+		} else {
+			response = envelope.Member
+		}
+	}
+	return repositoryMember(response), nil
+}
+
+func repositoryMember(response repositoryMemberResponse) app.RepositoryMember {
+	userID := firstNonEmpty(response.UserID, response.User.UserID)
+	name := firstNonEmpty(response.Name, response.User.Name, response.Username, response.User.Username)
+	email := firstNonEmpty(response.Email, response.User.Email)
+	level := decodeAccessLevel(response.AccessLevel)
+	inherited, source := inheritedMemberSource(response)
+	return app.RepositoryMember{
+		UserID:      userID,
+		Name:        name,
+		Email:       email,
+		AccessLevel: level,
+		Access:      app.RepositoryAccessLevelName(level),
+		ExpiresAt:   response.ExpiresAt,
+		Inherited:   inherited,
+		Source:      source,
+	}
+}
+
+func decodeAccessLevel(data json.RawMessage) int {
+	if len(data) == 0 {
+		return 0
+	}
+	var number int
+	if err := json.Unmarshal(data, &number); err == nil {
+		return number
+	}
+	var text string
+	if err := json.Unmarshal(data, &text); err != nil {
+		return 0
+	}
+	parsed, _ := strconv.Atoi(text)
+	return parsed
+}
+
+func inheritedMemberSource(response repositoryMemberResponse) (bool, string) {
+	if response.InheritedGroup.Name != "" || response.InheritedGroup.NameWithNamespace != "" || response.InheritedGroup.PathWithNamespace != "" {
+		return true, firstNonEmpty(response.InheritedGroup.NameWithNamespace, response.InheritedGroup.PathWithNamespace, response.InheritedGroup.Name)
+	}
+	if len(response.Inherited) == 0 || string(response.Inherited) == "null" || string(response.Inherited) == "false" {
+		return false, response.Source
+	}
+	if string(response.Inherited) == "true" {
+		return true, response.Source
+	}
+	var inherited struct {
+		Name              string `json:"name"`
+		NameWithNamespace string `json:"nameWithNamespace"`
+		PathWithNamespace string `json:"pathWithNamespace"`
+		Type              string `json:"type"`
+	}
+	if err := json.Unmarshal(response.Inherited, &inherited); err != nil {
+		return false, response.Source
+	}
+	return true, firstNonEmpty(response.Source, inherited.NameWithNamespace, inherited.PathWithNamespace, inherited.Name, inherited.Type)
+}
+
 func decodeChangeRequests(data []byte) ([]app.MergeRequestListItem, error) {
 	var response []changeRequestResponse
 	if err := json.Unmarshal(data, &response); err != nil {
@@ -221,4 +354,13 @@ func firstNonZero(values ...int64) int64 {
 		}
 	}
 	return 0
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

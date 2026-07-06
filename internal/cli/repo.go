@@ -17,6 +17,10 @@ type RepositoryUseCase interface {
 	CreateRepository(ctx context.Context, input app.CreateRepositoryInput) (app.RepositoryMutationResult, error)
 	CloneRepository(ctx context.Context, id, destination string) error
 	DeleteRepository(ctx context.Context, input app.DeleteRepositoryInput) (app.RepositoryMutationResult, error)
+	ListRepositoryMembers(ctx context.Context, repo string) ([]app.RepositoryMember, error)
+	AddRepositoryMember(ctx context.Context, input app.AddRepositoryMemberInput) (app.RepositoryMemberMutationResult, error)
+	UpdateRepositoryMember(ctx context.Context, input app.UpdateRepositoryMemberInput) (app.RepositoryMemberMutationResult, error)
+	RemoveRepositoryMember(ctx context.Context, input app.RemoveRepositoryMemberInput) (app.RepositoryMemberMutationResult, error)
 	ListBranches(ctx context.Context, repo string) ([]app.BranchListItem, error)
 	SyncBranch(ctx context.Context, input app.BranchSyncInput) (app.BranchMutationResult, error)
 	ListCommits(ctx context.Context, input app.CommitListInput) ([]app.CommitListItem, error)
@@ -32,7 +36,7 @@ func newRepoCommand(opts Options) *cobra.Command {
 		Use:     "repo",
 		Short:   "Manage Codeup repositories",
 		Long:    "Manage Codeup repositories, branches, commits, files, and clones.",
-		Example: "  yx repo list\n  yx repo current\n  yx repo view\n  yx repo view <repo>\n  yx repo create --name demo --path demo --visibility private --yes\n  yx repo delete <repo> --dry-run\n  yx repo branch list\n  yx repo commit list --ref master\n  yx repo file view test.py --ref master",
+		Example: "  yx repo list\n  yx repo current\n  yx repo view\n  yx repo view <repo>\n  yx repo create --name demo --path demo --visibility private --yes\n  yx repo delete <repo> --dry-run\n  yx repo member list <repo>\n  yx repo branch list\n  yx repo commit list --ref master\n  yx repo file view test.py --ref master",
 	}
 	cmd.AddCommand(newRepoListCommand(opts))
 	cmd.AddCommand(newRepoCurrentCommand(opts))
@@ -40,6 +44,7 @@ func newRepoCommand(opts Options) *cobra.Command {
 	cmd.AddCommand(newRepoCreateCommand(opts))
 	cmd.AddCommand(newRepoCloneCommand(opts))
 	cmd.AddCommand(newRepoDeleteCommand(opts))
+	cmd.AddCommand(newRepoMemberCommand(opts))
 	cmd.AddCommand(newRepoBranchCommand(opts))
 	cmd.AddCommand(newRepoCommitCommand(opts))
 	cmd.AddCommand(newRepoFileCommand(opts))

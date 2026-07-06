@@ -24,7 +24,7 @@ func TestTopLevelCommandHelpContracts(t *testing.T) {
 		{name: "pipeline", args: []string{"pipeline", "--help"}, want: []string{"Manage Yunxiao Flow pipelines", "list", "view", "create", "run", "logs"}},
 		{name: "pr", args: []string{"pr", "--help"}, want: []string{"Manage Codeup merge requests", "list", "view", "create", "merge"}},
 		{name: "project", args: []string{"project", "--help"}, want: []string{"Manage Yunxiao Projex projects", "list", "create"}},
-		{name: "repo", args: []string{"repo", "--help"}, want: []string{"Manage Codeup repositories", "list", "current", "view", "create", "clone", "branch", "commit", "file"}},
+		{name: "repo", args: []string{"repo", "--help"}, want: []string{"Manage Codeup repositories", "list", "current", "view", "create", "clone", "member", "branch", "commit", "file"}},
 		{name: "version", args: []string{"version", "--help"}, want: []string{"Show version information"}},
 		{name: "workitem", args: []string{"workitem", "--help"}, want: []string{"Manage Yunxiao work items", "list", "view", "create", "update"}},
 	}
@@ -55,6 +55,9 @@ func TestHighLevelSubcommandFlagHelpContracts(t *testing.T) {
 	}{
 		{name: "repo current", args: []string{"repo", "current", "--help"}, want: []string{"--remote", "--refresh", "--json"}},
 		{name: "repo create", args: []string{"repo", "create", "--help"}, want: []string{"--name", "--path", "--description", "--visibility", "--readme-type", "--dry-run", "--yes"}},
+		{name: "repo member add", args: []string{"repo", "member", "add", "--help"}, want: []string{"--user-id", "--access-level", "--expires-at", "--dry-run", "--yes"}},
+		{name: "repo member update", args: []string{"repo", "member", "update", "--help"}, want: []string{"--user-id", "--access-level", "--expires-at", "--dry-run", "--yes"}},
+		{name: "repo member remove", args: []string{"repo", "member", "remove", "--help"}, want: []string{"--user-id", "--dry-run", "--yes"}},
 		{name: "repo branch sync", args: []string{"repo", "branch", "sync", "--help"}, want: []string{"--source", "--target", "--dry-run", "--yes"}},
 		{name: "repo commit list", args: []string{"repo", "commit", "list", "--help"}, want: []string{"--ref", "--json"}},
 		{name: "repo file view", args: []string{"repo", "file", "view", "--help"}, want: []string{"--ref", "--json"}},

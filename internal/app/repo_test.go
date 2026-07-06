@@ -189,6 +189,72 @@ func TestRepoUseCaseDeleteRepositoryHonorsSafety(t *testing.T) {
 	}
 }
 
+func TestRepoUseCaseRepositoryMemberOperationsHonorSafety(t *testing.T) {
+	service := &fakeRepositoryService{
+		members: []RepositoryMember{{UserID: "u1", Name: "A", AccessLevel: 30, Access: "developer"}},
+		member:  RepositoryMember{UserID: "u1", AccessLevel: 40, Access: "maintainer"},
+	}
+	useCase := NewRepoUseCase(service, &fakeGitRunner{}, safety.Environment{ConfirmWrites: true, IsTerminal: false})
+
+	members, err := useCase.ListRepositoryMembers(context.Background(), "repo-1")
+	if err != nil {
+		t.Fatalf("expected member list, got: %v", err)
+	}
+	if len(members) != 1 || members[0].Access != "developer" {
+		t.Fatalf("unexpected members: %+v", members)
+	}
+
+	added, err := useCase.AddRepositoryMember(context.Background(), AddRepositoryMemberInput{
+		Repo:        "repo-1",
+		UserID:      "u1",
+		AccessLevel: "developer",
+		DryRun:      true,
+	})
+	if err != nil {
+		t.Fatalf("expected add dry-run, got: %v", err)
+	}
+	if !added.DryRun || service.addCalled {
+		t.Fatalf("expected dry-run without mutation, result=%+v called=%v", added, service.addCalled)
+	}
+
+	_, err = useCase.UpdateRepositoryMember(context.Background(), UpdateRepositoryMemberInput{
+		Repo:        "repo-1",
+		UserID:      "u1",
+		AccessLevel: "maintainer",
+	})
+	if err == nil {
+		t.Fatal("expected update without yes or dry-run to require confirmation")
+	}
+	if service.updateCalled {
+		t.Fatal("expected no update without confirmation")
+	}
+
+	updated, err := useCase.UpdateRepositoryMember(context.Background(), UpdateRepositoryMemberInput{
+		Repo:        "repo-1",
+		UserID:      "u1",
+		AccessLevel: "maintainer",
+		Yes:         true,
+	})
+	if err != nil {
+		t.Fatalf("expected update with yes, got: %v", err)
+	}
+	if updated.Member.Access != "maintainer" || service.updateInput.AccessLevel != "40" {
+		t.Fatalf("unexpected update result=%+v input=%+v", updated, service.updateInput)
+	}
+
+	removed, err := useCase.RemoveRepositoryMember(context.Background(), RemoveRepositoryMemberInput{
+		Repo:   "repo-1",
+		UserID: "u1",
+		Yes:    true,
+	})
+	if err != nil {
+		t.Fatalf("expected remove with yes, got: %v", err)
+	}
+	if removed.Member.UserID != "u1" || service.removeInput.UserID != "u1" {
+		t.Fatalf("unexpected remove result=%+v input=%+v", removed, service.removeInput)
+	}
+}
+
 type fakeRepositoryService struct {
 	list         []RepositoryListItem
 	detail       RepositoryDetail
@@ -196,12 +262,20 @@ type fakeRepositoryService struct {
 	branches     []BranchListItem
 	commits      []CommitListItem
 	file         RepositoryFile
+	members      []RepositoryMember
+	member       RepositoryMember
 	synced       BranchListItem
 	createInput  CreateRepositoryInput
 	syncInput    BranchSyncInput
+	addInput     AddRepositoryMemberInput
+	updateInput  UpdateRepositoryMemberInput
+	removeInput  RemoveRepositoryMemberInput
 	listCalls    int
 	getCalled    bool
 	createCalled bool
+	addCalled    bool
+	updateCalled bool
+	removeCalled bool
 	deleteCalled bool
 	deletedRepo  string
 	err          error
@@ -250,6 +324,28 @@ func (s *fakeRepositoryService) DeleteRepository(ctx context.Context, repo strin
 	s.deleteCalled = true
 	s.deletedRepo = repo
 	return RepositoryDetail{ID: repo}, s.err
+}
+
+func (s *fakeRepositoryService) ListRepositoryMembers(ctx context.Context, repo string) ([]RepositoryMember, error) {
+	return s.members, s.err
+}
+
+func (s *fakeRepositoryService) AddRepositoryMember(ctx context.Context, input AddRepositoryMemberInput) (RepositoryMember, error) {
+	s.addCalled = true
+	s.addInput = input
+	return s.member, s.err
+}
+
+func (s *fakeRepositoryService) UpdateRepositoryMember(ctx context.Context, input UpdateRepositoryMemberInput) (RepositoryMember, error) {
+	s.updateCalled = true
+	s.updateInput = input
+	return s.member, s.err
+}
+
+func (s *fakeRepositoryService) RemoveRepositoryMember(ctx context.Context, input RemoveRepositoryMemberInput) (RepositoryMember, error) {
+	s.removeCalled = true
+	s.removeInput = input
+	return RepositoryMember{UserID: input.UserID}, s.err
 }
 
 type fakeGitRunner struct {

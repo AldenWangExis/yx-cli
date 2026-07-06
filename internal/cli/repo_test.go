@@ -320,6 +320,63 @@ func TestRepoDeletePassesSafetyFlagsAndDefaultsToCurrentRepository(t *testing.T)
 	}
 }
 
+func TestRepoMemberCommands(t *testing.T) {
+	repos := &fakeRepoUseCase{
+		members: []app.RepositoryMember{{UserID: "u1", Name: "A", Email: "a@example.com", AccessLevel: 30, Access: "developer"}},
+		memberMutation: app.RepositoryMemberMutationResult{
+			DryRun:  true,
+			Summary: "add repository member u1 to repo-1 as 30",
+		},
+	}
+	resolver := &fakeRepoCurrentResolver{
+		current: app.CurrentRepository{ID: "repo-1", Name: "yx-cli", Path: "org/yx-cli"},
+	}
+	opts := Options{
+		ConfigPath:          filepath.Join(t.TempDir(), "config.yaml"),
+		RepoUseCase:         repos,
+		RepoCurrentResolver: resolver,
+	}
+
+	stdout, stderr, err := executeCommand(t, NewRootCommandWithOptions(opts), "--json", "repo", "member", "list")
+	if err != nil {
+		t.Fatalf("expected repo member list to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	var members []app.RepositoryMember
+	if err := json.Unmarshal([]byte(stdout), &members); err != nil {
+		t.Fatalf("expected JSON members, got error: %v output=%s", err, stdout)
+	}
+	if len(members) != 1 || repos.memberRepo != "repo-1" {
+		t.Fatalf("unexpected members=%+v repo=%q", members, repos.memberRepo)
+	}
+
+	stdout, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts), "repo", "member", "add", "--user-id", "u1", "--access-level", "developer", "--dry-run")
+	if err != nil {
+		t.Fatalf("expected repo member add to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	if !strings.Contains(stdout, "dry-run: add repository member u1 to repo-1 as 30") {
+		t.Fatalf("expected dry-run output, got:\n%s", stdout)
+	}
+	if repos.addMemberInput.Repo != "repo-1" || repos.addMemberInput.UserID != "u1" || repos.addMemberInput.AccessLevel != "developer" || !repos.addMemberInput.DryRun {
+		t.Fatalf("unexpected add input: %+v", repos.addMemberInput)
+	}
+
+	_, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts), "repo", "member", "update", "explicit", "--user-id", "u1", "--access-level", "maintainer", "--yes")
+	if err != nil {
+		t.Fatalf("expected repo member update to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	if repos.updateMemberInput.Repo != "explicit" || repos.updateMemberInput.AccessLevel != "maintainer" || !repos.updateMemberInput.Yes {
+		t.Fatalf("unexpected update input: %+v", repos.updateMemberInput)
+	}
+
+	_, stderr, err = executeCommand(t, NewRootCommandWithOptions(opts), "repo", "member", "remove", "explicit", "--user-id", "u1", "--yes")
+	if err != nil {
+		t.Fatalf("expected repo member remove to succeed, got error: %v stderr=%s", err, stderr)
+	}
+	if repos.removeMemberInput.Repo != "explicit" || repos.removeMemberInput.UserID != "u1" || !repos.removeMemberInput.Yes {
+		t.Fatalf("unexpected remove input: %+v", repos.removeMemberInput)
+	}
+}
+
 func TestRepoViewRequiresRepositoryArgument(t *testing.T) {
 	_, stderr, err := executeCommand(t, NewRootCommandWithOptions(Options{
 		ConfigPath:  filepath.Join(t.TempDir(), "config.yaml"),
@@ -334,22 +391,28 @@ func TestRepoViewRequiresRepositoryArgument(t *testing.T) {
 }
 
 type fakeRepoUseCase struct {
-	list             []app.RepositoryListItem
-	detail           app.RepositoryDetail
-	created          app.RepositoryMutationResult
-	branches         []app.BranchListItem
-	commits          []app.CommitListItem
-	file             app.RepositoryFile
-	deleted          app.RepositoryMutationResult
-	cloneID          string
-	cloneDestination string
-	createInput      app.CreateRepositoryInput
-	getID            string
-	branchRepo       string
-	commitInput      app.CommitListInput
-	fileInput        app.FileGetInput
-	syncInput        app.BranchSyncInput
-	deleteInput      app.DeleteRepositoryInput
+	list              []app.RepositoryListItem
+	detail            app.RepositoryDetail
+	created           app.RepositoryMutationResult
+	branches          []app.BranchListItem
+	commits           []app.CommitListItem
+	file              app.RepositoryFile
+	deleted           app.RepositoryMutationResult
+	members           []app.RepositoryMember
+	memberMutation    app.RepositoryMemberMutationResult
+	cloneID           string
+	cloneDestination  string
+	createInput       app.CreateRepositoryInput
+	getID             string
+	branchRepo        string
+	commitInput       app.CommitListInput
+	fileInput         app.FileGetInput
+	syncInput         app.BranchSyncInput
+	deleteInput       app.DeleteRepositoryInput
+	memberRepo        string
+	addMemberInput    app.AddRepositoryMemberInput
+	updateMemberInput app.UpdateRepositoryMemberInput
+	removeMemberInput app.RemoveRepositoryMemberInput
 }
 
 type fakeRepoCurrentResolver struct {
@@ -408,4 +471,27 @@ func (u *fakeRepoUseCase) GetFile(ctx context.Context, input app.FileGetInput) (
 func (u *fakeRepoUseCase) DeleteRepository(ctx context.Context, input app.DeleteRepositoryInput) (app.RepositoryMutationResult, error) {
 	u.deleteInput = input
 	return u.deleted, nil
+}
+
+func (u *fakeRepoUseCase) ListRepositoryMembers(ctx context.Context, repo string) ([]app.RepositoryMember, error) {
+	u.memberRepo = repo
+	return u.members, nil
+}
+
+func (u *fakeRepoUseCase) AddRepositoryMember(ctx context.Context, input app.AddRepositoryMemberInput) (app.RepositoryMemberMutationResult, error) {
+	u.addMemberInput = input
+	if u.memberMutation.DryRun || u.memberMutation.Member.UserID != "" {
+		return u.memberMutation, nil
+	}
+	return app.RepositoryMemberMutationResult{Member: app.RepositoryMember{UserID: input.UserID, Access: input.AccessLevel}}, nil
+}
+
+func (u *fakeRepoUseCase) UpdateRepositoryMember(ctx context.Context, input app.UpdateRepositoryMemberInput) (app.RepositoryMemberMutationResult, error) {
+	u.updateMemberInput = input
+	return app.RepositoryMemberMutationResult{Member: app.RepositoryMember{UserID: input.UserID, Access: input.AccessLevel}}, nil
+}
+
+func (u *fakeRepoUseCase) RemoveRepositoryMember(ctx context.Context, input app.RemoveRepositoryMemberInput) (app.RepositoryMemberMutationResult, error) {
+	u.removeMemberInput = input
+	return app.RepositoryMemberMutationResult{Member: app.RepositoryMember{UserID: input.UserID}}, nil
 }

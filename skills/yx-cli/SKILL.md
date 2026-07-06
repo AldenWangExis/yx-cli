@@ -80,6 +80,7 @@ go install github.com/AldenWangExis/yx-cli/cmd/yx@latest
 | Profile/domain/org config | `yx config list/get/set/use` | `yx config --help` |
 | Organization discovery/selection | `yx org list`, `yx org use <org-id>` | `yx org --help` |
 | Codeup repo list/view/create/clone/delete | `yx repo ...` | `yx repo --help` |
+| Codeup repo members / permissions | `yx repo member ...` | `yx repo member --help` |
 | Current repo from git remote | `yx repo current` | `yx repo current --help` |
 | Branch/commit/file inspection | `yx repo branch/commit/file ...` | `yx repo branch --help` |
 | Merge requests / PRs | `yx mr ...` or `yx pr ...` | `yx mr --help` |
@@ -153,6 +154,16 @@ For repository deletion, resolve the target first and dry-run the write:
 yx repo view <repo>
 yx repo delete <repo> --dry-run
 yx repo delete <repo> --yes
+```
+
+For repository members and permissions, use organization `USER_ID` values from `yx member search`. Access levels accept `viewer` (`20`), `developer` (`30`), or `maintainer` (`40`). List first, then dry-run writes:
+
+```bash
+yx repo member list <repo>
+yx member search --name <name>
+yx repo member add <repo> --user-id <user-id> --access-level developer --dry-run
+yx repo member update <repo> --user-id <user-id> --access-level maintainer --dry-run
+yx repo member remove <repo> --user-id <user-id> --dry-run
 ```
 
 For PR/MR work, prefer `yx pr ...` if the user speaks GitHub vocabulary, and `yx mr ...` if they speak Codeup/Yunxiao vocabulary.

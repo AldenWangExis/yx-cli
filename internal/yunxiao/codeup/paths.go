@@ -33,6 +33,14 @@ func (p codeupPaths) repositoryBranchesPath(repo string) string {
 	return p.repositoryPath(repo) + "/branches"
 }
 
+func (p codeupPaths) repositoryMembersPath(repo string) string {
+	return p.repositoryPath(repo) + "/members"
+}
+
+func (p codeupPaths) repositoryMemberPath(repo, userID string) string {
+	return p.repositoryMembersPath(repo) + "/" + url.PathEscape(userID)
+}
+
 func (p codeupPaths) repositoryCommitsPath(repo string) string {
 	return p.repositoryPath(repo) + "/commits"
 }

@@ -88,6 +88,10 @@ yx repo view <repo>
 yx repo create --name demo --path demo --visibility private --yes
 yx repo clone <repo> [destination]
 yx repo delete <repo> --dry-run
+yx repo member list <repo>
+yx repo member add <repo> --user-id <user-id> --access-level developer --dry-run
+yx repo member update <repo> --user-id <user-id> --access-level maintainer --dry-run
+yx repo member remove <repo> --user-id <user-id> --dry-run
 yx repo branch list <repo>
 yx repo branch sync <repo> --source master --target feat/a --dry-run
 yx repo commit list <repo> --ref master
@@ -121,6 +125,13 @@ yx workitem delete <workitem-id> --dry-run
 ```
 
 `yx issue ...` is an alias for `yx workitem ...`. Use `--assignee @me` for the current user, or `yx member search --name <name>` then pass the returned `USER_ID`. Repository-based issue lists require an explicit repo-to-project mapping:
+
+Repository member commands use organization `USER_ID` values. Access levels accept `viewer` (`20`), `developer` (`30`), or `maintainer` (`40`):
+
+```bash
+yx member search --name <name>
+yx repo member add <repo> --user-id <user-id> --access-level developer --dry-run
+```
 
 ```bash
 yx config set profiles.default.repoProjectMap.<repo> <project-id>
