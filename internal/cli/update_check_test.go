@@ -27,15 +27,15 @@ func TestCompareVersions(t *testing.T) {
 	}
 }
 
-func TestGitHubUpdateCheckerUsesCache(t *testing.T) {
+func TestRegistryUpdateCheckerUsesCache(t *testing.T) {
 	calls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
-		_, _ = w.Write([]byte(`{"tag_name":"v1.4.0"}`))
+		_, _ = w.Write([]byte(`{"version":"1.4.0"}`))
 	}))
 	defer server.Close()
 
-	checker := NewGitHubUpdateChecker(UpdateCheckerConfig{
+	checker := NewRegistryUpdateChecker(UpdateCheckerConfig{
 		LatestURL:     server.URL,
 		CachePath:     filepath.Join(t.TempDir(), "update.json"),
 		Current:       "v1.0.0",
@@ -65,11 +65,11 @@ func TestGitHubUpdateCheckerUsesNPMUpdateCommandForNPMInstall(t *testing.T) {
 	t.Setenv("YX_NPM_PACKAGE", "@aldenwangexis/yx-cli")
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"tag_name":"v1.4.0"}`))
+		_, _ = w.Write([]byte(`{"version":"1.4.0"}`))
 	}))
 	defer server.Close()
 
-	checker := NewGitHubUpdateChecker(UpdateCheckerConfig{
+	checker := NewRegistryUpdateChecker(UpdateCheckerConfig{
 		LatestURL: server.URL,
 		CachePath: filepath.Join(t.TempDir(), "update.json"),
 		Current:   "v1.0.0",

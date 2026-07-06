@@ -1,6 +1,6 @@
 {
   "name": "@aldenwangexis/yx-cli",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "Yunxiao command line client",
   "license": "MIT",
   "homepage": "https://github.com/AldenWangExis/yx-cli#readme",
@@ -15,17 +15,19 @@
     "yx": "bin/yx.js"
   },
   "scripts": {
-    "test": "node scripts/install.test.js && node scripts/verify-packages.js"
+    "postinstall": "node scripts/install-skill.js",
+    "test": "node scripts/install.test.js && node scripts/install-skill.test.js && node scripts/verify-packages.js"
   },
   "optionalDependencies": {
-    "@aldenwangexis/yx-cli-darwin-arm64": "1.7.0",
-    "@aldenwangexis/yx-cli-linux-arm64": "1.7.0",
-    "@aldenwangexis/yx-cli-linux-x64": "1.7.0",
-    "@aldenwangexis/yx-cli-win32-x64": "1.7.0"
+    "@aldenwangexis/yx-cli-darwin-arm64": "1.7.1",
+    "@aldenwangexis/yx-cli-linux-arm64": "1.7.1",
+    "@aldenwangexis/yx-cli-linux-x64": "1.7.1",
+    "@aldenwangexis/yx-cli-win32-x64": "1.7.1"
   },
   "files": [
     "bin",
     "scripts",
+    "skills",
     "README.md"
   ],
   "engines": {

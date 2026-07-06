@@ -14,7 +14,7 @@ import (
 
 const (
 	updateCheckOptOutEnv = "YX_NO_UPDATE_CHECK"
-	updateCheckLatestURL = "https://api.github.com/repos/AldenWangExis/yx-cli/releases/latest"
+	updateCheckLatestURL = "https://registry.npmjs.org/@aldenwangexis%2fyx-cli/latest"
 	defaultNPMPackage    = "@aldenwangexis/yx-cli"
 )
 
@@ -42,11 +42,11 @@ type UpdateCheckerConfig struct {
 	CacheDuration time.Duration
 }
 
-type GitHubUpdateChecker struct {
+type RegistryUpdateChecker struct {
 	config UpdateCheckerConfig
 }
 
-func NewGitHubUpdateChecker(config UpdateCheckerConfig) *GitHubUpdateChecker {
+func NewRegistryUpdateChecker(config UpdateCheckerConfig) *RegistryUpdateChecker {
 	if config.LatestURL == "" {
 		config.LatestURL = updateCheckLatestURL
 	}
@@ -65,10 +65,14 @@ func NewGitHubUpdateChecker(config UpdateCheckerConfig) *GitHubUpdateChecker {
 	if config.CachePath == "" {
 		config.CachePath = defaultUpdateCachePath()
 	}
-	return &GitHubUpdateChecker{config: config}
+	return &RegistryUpdateChecker{config: config}
 }
 
-func (c *GitHubUpdateChecker) Check(ctx UpdateCheckContext) (UpdateNotice, error) {
+func NewGitHubUpdateChecker(config UpdateCheckerConfig) *RegistryUpdateChecker {
+	return NewRegistryUpdateChecker(config)
+}
+
+func (c *RegistryUpdateChecker) Check(ctx UpdateCheckContext) (UpdateNotice, error) {
 	latest, ok := c.cachedLatest()
 	if !ok {
 		var err error
@@ -100,7 +104,7 @@ func updateCommand(latest string) string {
 	return fmt.Sprintf("YX_INSTALL_VERSION=%s curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/main/scripts/install.sh | sh", latest)
 }
 
-func (c *GitHubUpdateChecker) cachedLatest() (string, bool) {
+func (c *RegistryUpdateChecker) cachedLatest() (string, bool) {
 	data, err := os.ReadFile(c.config.CachePath)
 	if err != nil {
 		return "", false
@@ -118,7 +122,7 @@ func (c *GitHubUpdateChecker) cachedLatest() (string, bool) {
 	return cache.Latest, true
 }
 
-func (c *GitHubUpdateChecker) writeCache(latest string) error {
+func (c *RegistryUpdateChecker) writeCache(latest string) error {
 	if err := os.MkdirAll(filepath.Dir(c.config.CachePath), 0o700); err != nil {
 		return err
 	}
@@ -132,12 +136,12 @@ func (c *GitHubUpdateChecker) writeCache(latest string) error {
 	return os.WriteFile(c.config.CachePath, data, 0o600)
 }
 
-func (c *GitHubUpdateChecker) fetchLatest(ctx context.Context) (string, error) {
+func (c *RegistryUpdateChecker) fetchLatest(ctx context.Context) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.config.LatestURL, nil)
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "yx-cli/"+c.config.Current)
 	resp, err := c.config.HTTPClient.Do(req)
 	if err != nil {
@@ -145,16 +149,25 @@ func (c *GitHubUpdateChecker) fetchLatest(ctx context.Context) (string, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("latest release lookup returned status %d", resp.StatusCode)
+		return "", fmt.Errorf("latest version lookup returned status %d", resp.StatusCode)
 	}
 	var payload struct {
 		TagName string `json:"tag_name"`
 		Name    string `json:"name"`
+		Version string `json:"version"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		return "", err
 	}
-	return firstStatusValue(payload.TagName, payload.Name), nil
+	return normalizeVersionTag(firstStatusValue(payload.Version, payload.TagName, payload.Name)), nil
+}
+
+func normalizeVersionTag(version string) string {
+	value := strings.TrimSpace(version)
+	if value == "" || strings.HasPrefix(value, "v") {
+		return value
+	}
+	return "v" + value
 }
 
 func maybeRunUpdateCheck(cmdCtx context.Context, cmdErrWriter interface{ Write([]byte) (int, error) }, opts Options, ctx Context, commandName string) {
@@ -163,7 +176,7 @@ func maybeRunUpdateCheck(cmdCtx context.Context, cmdErrWriter interface{ Write([
 	}
 	checker := opts.UpdateChecker
 	if checker == nil {
-		checker = NewGitHubUpdateChecker(UpdateCheckerConfig{})
+		checker = NewRegistryUpdateChecker(UpdateCheckerConfig{})
 	}
 	notice, err := checker.Check(UpdateCheckContext{Context: cmdCtx})
 	if err != nil || !notice.Available {

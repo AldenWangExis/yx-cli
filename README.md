@@ -2,6 +2,8 @@
 
 `yx` is a Go CLI for Alibaba Cloud Yunxiao workflows. It covers Codeup repositories, merge requests, work items, projects, pipelines, auth, and local profile configuration.
 
+For AI agents, npm installation also ships a Codex-compatible skill. See [Quick Start For AI Agents](#quick-start-for-ai-agents).
+
 ## Install
 
 Install `yx` with npm:
@@ -10,7 +12,7 @@ Install `yx` with npm:
 npm install -g @aldenwangexis/yx-cli
 ```
 
-The npm channel installs a platform-specific npm binary package and does not download from GitHub Releases during install.
+The npm channel installs a platform-specific npm binary package, installs the bundled `yx-cli` skill into `~/.agents/skills/yx-cli/`, and does not download from GitHub Releases during install. Set `YX_SKIP_SKILL_INSTALL=1` to skip the skill install step.
 
 Install a specific npm version when you need a pinned version:
 
@@ -78,7 +80,70 @@ yx auth status
 
 Paste a Yunxiao personal access token when prompted. Tokens are stored outside `config.yaml`. `yx auth status` masks tokens and service connection IDs in terminal output.
 
-## Common Commands
+## Quick Start For AI Agents
+
+`yx-cli` includes an agent skill at [skills/yx-cli/SKILL.md](skills/yx-cli/SKILL.md). When installed from npm, the package copies the bundled skill to:
+
+```text
+~/.agents/skills/yx-cli/SKILL.md
+```
+
+Agents should load that skill before operating Yunxiao resources. The skill is the operational guide; this README is the human-facing CLI overview.
+
+Install for agent use:
+
+```bash
+npm install -g @aldenwangexis/yx-cli
+```
+
+This installs the `yx` npm wrapper, the platform-specific binary package, and the bundled skill. Pin the package when reproducibility matters:
+
+```bash
+npm install -g @aldenwangexis/yx-cli@1.7.0
+```
+
+Skip the skill write only when the user asks to manage agent skills manually:
+
+```bash
+YX_SKIP_SKILL_INSTALL=1 npm install -g @aldenwangexis/yx-cli
+```
+
+Start every agent workflow by establishing local state:
+
+```bash
+if command -v yx >/dev/null 2>&1; then
+  yx --version
+  yx auth status
+else
+  echo "yx is not installed"
+fi
+```
+
+Agent rules of thumb:
+
+- Prefer `yx` commands over raw Yunxiao OpenAPI when a command exists.
+- Use `yx <command> --help` instead of guessing flags.
+- Use `--json` when command output feeds another step.
+- Use `--dry-run` before write operations unless the user explicitly approved a real mutation.
+- Use `--yes` only after the user approved non-interactive writes.
+- Keep secrets out of output: never print PATs, service connection IDs, credentials, or credential-bearing remotes.
+- Set `YX_NO_UPDATE_CHECK=1` in scripts when update hints would pollute machine-readable output.
+
+Agent command map:
+
+| Intent | Start Here |
+|---|---|
+| Install, auth, profile state | `yx auth status`, `yx auth login`, `yx config list` |
+| Organization selection | `yx org list`, `yx org use <org-id>` |
+| Current Codeup repo context | `yx repo current --refresh` |
+| Codeup repos, branches, commits, files | `yx repo ...` |
+| Codeup repo members and permissions | `yx repo member ...` |
+| Merge requests | `yx mr ...` or `yx pr ...` |
+| Projects and work items | `yx project ...`, `yx workitem ...`, `yx issue ...` |
+| Organization members and assignees | `yx member list/search/get` |
+| Flow pipelines and logs | `yx pipeline ...` |
+
+## Common Commands For Humans
 
 Repositories:
 
@@ -156,7 +221,7 @@ yx pipeline logs <run-id> --follow
 - Add `--json` to list and detail commands for machine-readable output.
 - Add `--dry-run` to write commands to preview without sending write requests.
 - Add `--yes` to confirmed write commands when you want non-interactive execution.
-- `yx` may check GitHub Releases once per day and print update hints to stderr. Disable with `YX_NO_UPDATE_CHECK=1`.
+- `yx` may check the npm registry once per day and print update hints to stderr. Disable with `YX_NO_UPDATE_CHECK=1`.
 - Set `profiles.<name>.safety.confirmWrites true` to require confirmation for write commands.
 
 ## Development
