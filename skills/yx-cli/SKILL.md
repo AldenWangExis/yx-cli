@@ -51,7 +51,7 @@ npm install -g @aldenwangexis/yx-cli@1.7.0
 GitHub Release binaries remain available for users who cannot or do not want to use npm:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/master/scripts/install.sh | sh
 ```
 
 Source install is also available when Go is installed:
@@ -220,7 +220,7 @@ Use `yx pipeline run logs --help` for job, step, build, offset, and limit flags.
 | `unknown flag: --version` | Binary is stale; reinstall or rebuild. |
 | Not logged in | Run `yx auth login`; then `yx auth status`. |
 | Organization ID unknown | Run `yx org list`; then `yx org use <org-id>`. |
-| `unknown command "org"` or missing delete/close commands | Binary is stale; reinstall latest or rebuild from current main. |
+| `unknown command "org"` or missing delete/close commands | Binary is stale; reinstall latest or rebuild from current master. |
 | Missing project/repo mapping | Pass `--project` or configure `repoProjectMap`. |
 | Current repo cannot resolve | Check `git remote -v`; then `yx repo current --remote <name> --refresh`. |
 | Remote URL has credentials | Recommend SSH remote or git credential helper. |

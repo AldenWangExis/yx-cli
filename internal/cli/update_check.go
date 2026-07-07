@@ -101,7 +101,7 @@ func updateCommand(latest string) string {
 		}
 		return fmt.Sprintf("npm update -g %s", pkg)
 	}
-	return fmt.Sprintf("YX_INSTALL_VERSION=%s curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/main/scripts/install.sh | sh", latest)
+	return fmt.Sprintf("YX_INSTALL_VERSION=%s curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/master/scripts/install.sh | sh", latest)
 }
 
 func (c *RegistryUpdateChecker) cachedLatest() (string, bool) {

@@ -25,7 +25,7 @@ The npm package version matches the GitHub Release tag, so `@aldenwangexis/yx-cl
 You can also install from GitHub Release assets:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/AldenWangExis/yx-cli/master/scripts/install.sh | sh
 ```
 
 The GitHub installer downloads the latest Release by default, writes `yx` to `~/.local/bin`, supports macOS arm64, Linux amd64, and Linux arm64, and can be pinned with `YX_INSTALL_VERSION=vX.Y.Z`. Windows users can download `yx-windows-amd64.exe` from the GitHub Release assets and place it in a directory on `PATH`.
@@ -241,7 +241,7 @@ make build
 
 ## Release
 
-Pushes to `main` run tests. Tags matching `v*` run tests, build release binaries, and create or update a GitHub Release with these assets:
+Pushes to `master` run tests. Tags matching `v*` run tests, build release binaries, and create or update a GitHub Release with these assets:
 
 - `yx-darwin-arm64`
 - `yx-linux-amd64`
@@ -252,8 +252,8 @@ Release a new version:
 
 ```bash
 git tag -a v1.7.0 -m "v1.7.0"
-git push origin main v1.7.0
-git push codeup main v1.7.0
+git push origin master v1.7.0
+git push codeup master v1.7.0
 ```
 
 The npm distribution publishes four platform binary packages first, then the main wrapper package:
